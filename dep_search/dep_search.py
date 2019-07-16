@@ -3,11 +3,11 @@ import pickle
 import re
 
 EXCLUDE_DIR_NAMES = ['scripts', 'json', 'dev_kiev', 'dev_kiev_pr']
+ACCSEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 trg_re = re.compile('@?insert@(.*?)@?into@(.*?)[@|(]', re.DOTALL | re.MULTILINE | re.IGNORECASE)
-src_re = re.compile('@?(from|inner@join|left@join|right@join|full@join|cross@join|join)@(.*?)@',
-                    re.DOTALL | re.MULTILINE | re.IGNORECASE)
-# @?from@(.*?)@?,@(.*)@
+src_re = re.compile('@?(from|inner@join|left@join|right@join|full@join|cross@join|join)@(.*?)@', re.DOTALL | re.MULTILINE | re.IGNORECASE)
+src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE | re.IGNORECASE)
 
 sr = """select * from lol1 l1, lol2 l2"""
 print('@'.join(sr.split()))
@@ -25,53 +25,31 @@ sad */ LLLOOL
 , lol2 as ( -- COMMENT!
 select 2 as b from dual2 /* comment2 */ 
 )
+insert into LOL1
 select * from lol1 l1, lol2 l2 
-where l1.a = l2.b(+)
+where l1.a = l2.b(+);
+
+
      
 '''
 
-
-def clear_data(text):
-    # lines clearing
-    text_lines = [line for line in text.split('\n') if
-                  line.strip() and not line.strip().startswith('--') and not line.strip().startswith(
-                      '/*') and not line.strip().startswith('pkg_')]
-    #  comments clearing
-    cl_data = []
-    flag_1 = 0
-    for line in text_lines:
-        comm1 = line.find('--')
-        comm2_start = line.find('/*')
-        comm2_end = line.find('*/')
-        if comm1 > -1:
-            line = line[:comm1]
-        elif comm2_start > -1 and comm2_end > -1:
-            line = line[:comm2_start] + line[comm2_end + 2:]
-        elif comm2_start > -1 and flag_1 == 0:
-            line = line[:comm2_start]
-            flag_1 = 1
-        elif flag_1 == 1 and comm2_end > -1:
-            line = line[comm2_end + 2:]
-            flag_1 = 0
-        elif flag_1 == 1:
-            continue
-        if line:
-            cl_data.append(line)
-    return '\n'.join(cl_data)
-
+l1 = ['1', '2', '3']
+s1 = set(l1)
 
 #
+# s2 = '@'.join(s.split())
 #
-# data = clear_data(raw_data)
+# print (s2)
 #
-# s2 = '@'.join(data.split())
 # res1 = trg_re.findall(s2)
 # res2 = src_re.findall(s2)
+# res3 = src_with_catch.findall(s2)
 #
 # print(res1)
 # print(res2)
+# print(res3)
 
-#
+
 # exit(1)
 
 a = {'Python': '.py', 'C++': '.cpp', 'Java': '.java'}
@@ -82,8 +60,38 @@ with open('filename.pickle', 'wb') as handle:
 with open('filename.pickle', 'rb') as handle:
     b = pickle.load(handle)
 
-
 lol_path = r''
+
+
+def clear_data(text):
+    # lines clearing
+    text_lines = [line for line in text.split('\n') if line.strip() and not line.strip().startswith('--')]
+    #  comments clearing
+    cl_data = []
+    is_multiline_comment = 0
+    for line in text_lines:
+        comm1 = line.find('--')
+        comm2_start = line.find('/*')
+        comm2_end = line.find('*/')
+        if comm1 > -1:
+            line = line[:comm1]
+        elif comm2_start > -1 and comm2_end > -1:
+            line = line[:comm2_start] + line[comm2_end + 2:]
+        elif comm2_start > -1 and is_multiline_comment == 0:
+            line = line[:comm2_start]
+            is_multiline_comment = 1
+        elif is_multiline_comment == 1 and comm2_end > -1:
+            line = line[comm2_end + 2:]
+            is_multiline_comment = 0
+        elif is_multiline_comment == 1:
+            continue
+        if line:
+            cl_data.append(line)
+    return '\n'.join(cl_data)
+
+
+def process_prefix(object_name):
+    pass
 
 
 def process_file(file_path):
@@ -91,19 +99,31 @@ def process_file(file_path):
 
     f = open(file_path, 'r')
     data = f.read()
-    cl_data = clear_data(data)
-    cl_data = '@'.join(cl_data.split())
+    for stm in data.split(';'):
+        stm = stm.strip().lower()
+        if not (stm.startswith('insert') or stm.startswith('merge')):
+            continue
+        cl_data = clear_data(stm)
+        cl_data = '@'.join(cl_data.split())
 
-    trg_objects = trg_re.findall(cl_data)
-    for trg in trg_objects:
-        ind_part[trg[1]] = 'insert'
-    src_objects = src_re.findall(cl_data)
-    for src in src_objects:
-        if src[1] != '(' and src[1].lower() != '(select':
-            ind_part[src[1]] = src[0].lower()
+        trg_object = trg_re.findall(cl_data)[0][1].strip().lower()
+        src_objects = src_re.findall(cl_data)
+        with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
+
+        l_sources = [src[1].strip(' ()').lower() for src in src_objects if src[1].strip(' ()') \
+                     and 'select' not in src[1].strip(' ()').lower() \
+                     and 'dual' not in src[1].strip(' ()').lower() \
+                     and src[1].strip(' ()').lower() != trg_object \
+                     and src[1].strip(' ()').lower() not in with_objects]
+        s_sources = set(l_sources)
+        t_sources = tuple(s_sources)
+
+        ind_part[trg_object] = t_sources
 
     print(ind_part)
     f.close()
+
+    return ind_part
 
 
 def create_index(root_dir_path, exclude_dir_names=None):
