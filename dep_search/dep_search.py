@@ -3,7 +3,7 @@ import pickle
 import re
 
 EXCLUDE_DIR_NAMES = ['scripts', 'json', 'dev_kiev', 'dev_kiev_pr']
-ACCSEPTED_FILES_TYPES = ['.pkb', '.sql']
+ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 trg_re = re.compile('@?insert@(.*?)@?into@(.*?)[@|(]', re.DOTALL | re.MULTILINE | re.IGNORECASE)
 src_re = re.compile('@?(from|inner@join|left@join|right@join|full@join|cross@join|join)@(.*?)@', re.DOTALL | re.MULTILINE | re.IGNORECASE)
@@ -33,8 +33,6 @@ where l1.a = l2.b(+);
      
 '''
 
-l1 = ['1', '2', '3']
-s1 = set(l1)
 
 #
 # s2 = '@'.join(s.split())
@@ -91,7 +89,7 @@ def clear_data(text):
 
 
 def process_prefix(object_name):
-    pass
+    return object_name[object_name.find('.') + 1:]
 
 
 def process_file(file_path):
@@ -126,17 +124,34 @@ def process_file(file_path):
                          and src[1].strip(' ()').lower() != trg_object \
                          and src[1].strip(' ()').lower() not in with_objects]
             s_sources = set(l_sources)
-            t_sources = tuple(s_sources)
+            t_sources = tuple([process_prefix(s) for s in s_sources])
 
             ind_part[trg_object] = t_sources
 
-    print(ind_part)
+    # print(ind_part)
     f.close()
 
     return ind_part
 
 
 root_dir_path = r''
+
+
+def add_to_index(index, ind_part):
+    if ind_part is None:
+        return
+    if len(ind_part) == 0:
+        return
+    else:
+        for k in ind_part:
+            if k not in index:
+                index[k] = ind_part[k]
+            else:
+                res_val = tuple(set(index[k] + ind_part[k]))
+                index[k] = res_val
+
+    # print(index)
+
 
 def create_index(root_dir_path, exclude_dir_names=None):
     index = {}
@@ -149,17 +164,21 @@ def create_index(root_dir_path, exclude_dir_names=None):
             if not f.endswith('.pks'):
                 # print(os.path.join(path, f))
                 ind_part = process_file(os.path.join(path, f))
-                if ind_part:
-                    index.update(ind_part)
+                add_to_index(index, ind_part)
 
     print(index)
 
 
-
-# create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+create_index(root_dir_path, EXCLUDE_DIR_NAMES)
 
 # process_file(lol_path)
 
 
+a = {'1': (1, 2, 3), '2': (6, 7, 8)}
+# a = {'1': (1,2,3)}
+b = {'2': (3, 4, 5), '5': (5, 5, 5)}
 
+add_to_index(a, b)
 
+res = process_prefix('asd')
+print(res)
