@@ -5,50 +5,10 @@ import re
 EXCLUDE_DIR_NAMES = ['scripts', 'json', 'dev_kiev', 'dev_kiev_pr']
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
-trg_re = re.compile('@?insert@(.*?)@?into@(.*?)[@|(]', re.DOTALL | re.MULTILINE | re.IGNORECASE)
-src_re = re.compile('@?(from|inner@join|left@join|right@join|full@join|cross@join|join)@(.*?)@', re.DOTALL | re.MULTILINE | re.IGNORECASE)
+trg_re = re.compile('@?insert@(.*?)@?into@([_a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE | re.IGNORECASE)
+src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE | re.IGNORECASE)
 src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE | re.IGNORECASE)
 
-sr = """select * from lol1 l1, lol2 l2"""
-print('@'.join(sr.split()))
-
-s = '''
-
-with lol1 as (
--- lol
-select 1 as a from dual1 union all -- lol1
-select 2 as a from dual1 union all /* + asd */
-select 3 /* as a from dual1
-asd 
-sad */ LLLOOL
-) 
-, lol2 as ( -- COMMENT!
-select 2 as b from dual2 /* comment2 */ 
-)
-insert into LOL1
-select * from lol1 l1, lol2 l2 
-where l1.a = l2.b(+);
-
-
-     
-'''
-
-
-#
-# s2 = '@'.join(s.split())
-#
-# print (s2)
-#
-# res1 = trg_re.findall(s2)
-# res2 = src_re.findall(s2)
-# res3 = src_with_catch.findall(s2)
-#
-# print(res1)
-# print(res2)
-# print(res3)
-
-
-# exit(1)
 
 a = {'Python': '.py', 'C++': '.cpp', 'Java': '.java'}
 
@@ -128,7 +88,7 @@ def process_file(file_path):
 
             ind_part[trg_object] = t_sources
 
-    # print(ind_part)
+    print(ind_part)
     f.close()
 
     return ind_part
@@ -169,16 +129,6 @@ def create_index(root_dir_path, exclude_dir_names=None):
     print(index)
 
 
-create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+# create_index(root_dir_path, EXCLUDE_DIR_NAMES)
 
 # process_file(lol_path)
-
-
-a = {'1': (1, 2, 3), '2': (6, 7, 8)}
-# a = {'1': (1,2,3)}
-b = {'2': (3, 4, 5), '5': (5, 5, 5)}
-
-add_to_index(a, b)
-
-res = process_prefix('asd')
-print(res)
