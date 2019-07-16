@@ -98,27 +98,37 @@ def process_file(file_path):
     ind_part = {}
 
     f = open(file_path, 'r')
-    data = f.read()
+    try:
+        data = f.read()
+    except Exception as e:
+        print(e)
+        print(file_path + '-- broken')
+        return
+
     for stm in data.split(';'):
         stm = stm.strip().lower()
         if not (stm.startswith('insert') or stm.startswith('merge')):
             continue
         cl_data = clear_data(stm)
         cl_data = '@'.join(cl_data.split())
+        trg_object = None
+        try:
+            trg_object = trg_re.findall(cl_data)[0][1].strip().lower()
+        except:
+            pass
+        if trg_object:
+            src_objects = src_re.findall(cl_data)
+            with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
 
-        trg_object = trg_re.findall(cl_data)[0][1].strip().lower()
-        src_objects = src_re.findall(cl_data)
-        with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
+            l_sources = [src[1].strip(' ()').lower() for src in src_objects if src[1].strip(' ()') \
+                         and 'select' not in src[1].strip(' ()').lower() \
+                         and 'dual' not in src[1].strip(' ()').lower() \
+                         and src[1].strip(' ()').lower() != trg_object \
+                         and src[1].strip(' ()').lower() not in with_objects]
+            s_sources = set(l_sources)
+            t_sources = tuple(s_sources)
 
-        l_sources = [src[1].strip(' ()').lower() for src in src_objects if src[1].strip(' ()') \
-                     and 'select' not in src[1].strip(' ()').lower() \
-                     and 'dual' not in src[1].strip(' ()').lower() \
-                     and src[1].strip(' ()').lower() != trg_object \
-                     and src[1].strip(' ()').lower() not in with_objects]
-        s_sources = set(l_sources)
-        t_sources = tuple(s_sources)
-
-        ind_part[trg_object] = t_sources
+            ind_part[trg_object] = t_sources
 
     print(ind_part)
     f.close()
@@ -126,14 +136,30 @@ def process_file(file_path):
     return ind_part
 
 
+root_dir_path = r''
+
 def create_index(root_dir_path, exclude_dir_names=None):
+    index = {}
     for path, subdirs, files in os.walk(root_dir_path):
         subdirs[:] = [d for d in subdirs if d not in exclude_dir_names]
         if not files:
             continue
         print('{0} - {1} - {2}'.format(path, os.path.basename(os.path.dirname(path)), files))
+        for f in files:
+            if not f.endswith('.pks'):
+                # print(os.path.join(path, f))
+                ind_part = process_file(os.path.join(path, f))
+                if ind_part:
+                    index.update(ind_part)
+
+    print(index)
 
 
-# create_index(ROOT, EXCLUDE_DIR_NAMES)
 
-process_file(lol_path)
+# create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+
+# process_file(lol_path)
+
+
+
+
