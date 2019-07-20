@@ -3,13 +3,13 @@ import pickle
 import re
 
 INDEX = {}
-EXCLUDE_DIR_NAMES = ['scripts', 'json', 'dev_kiev', 'dev_kiev_pr']
+EXCLUDE_DIR_NAMES = ['dev_dw','dev_pr','tables','sequences','synonym','types','application','queries','scripts', 'json', 'dev_kiev', 'dev_kiev_pr']
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
-trg_re = re.compile('@?insert@(.*?)@?into@([\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
-src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
+trg_re = re.compile('@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
+trg_view_re = re.compile('create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
+src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
 src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
-
 
 a = {'Python': '.py', 'C++': '.cpp', 'Java': '.java'}
 
@@ -19,12 +19,11 @@ with open('filename.pickle', 'wb') as handle:
 with open('filename.pickle', 'rb') as handle:
     b = pickle.load(handle)
 
-lol_path = r''
-
 
 def clear_data(text):
     # lines clearing
-    text_lines = [line.strip().lower() for line in text.split('\n') if line.strip() and not line.strip().startswith('--')]
+    text_lines = [line.strip().lower() for line in text.split('\n') if
+                  line.strip() and not line.strip().startswith('--')]
     # print(text_lines)
     if text_lines is None:
         return None
@@ -53,14 +52,25 @@ def clear_data(text):
     return '\n'.join(cl_data)
 
 
-def process_prefix(object_name):
-    return object_name[object_name.find('.') + 1:]
+#[DWH specific]
+def if_queal_tables(t1_name, t2_name):
+    equal_prefix = ['t_', 'v_', 'c_', 'd_']
+    if t1_name[:2] in equal_prefix and t2_name[:2] in equal_prefix:
+        return t1_name[2:] == t2_name[2:]
+    else:
+        return False
+
+
+def process_prefix_postfix(object_name, op_type='pf'):
+    dot = object_name.find('.') + 1 if op_type == 'pr' else 0
+    if object_name.find('@') > -1:
+        return object_name[dot:object_name.find('@')]
+    else:
+        return object_name[dot:]
 
 
 def process_file(file_path):
     ind_part = {}
-    # if 'pkg_etl_f_bc_alg_ww' in file_path:
-    #     print(file_path)
     f = open(file_path, 'rb')
     try:
         data = f.read().decode('utf-8', 'ignore')
@@ -71,32 +81,35 @@ def process_file(file_path):
 
     for stm in data.split(';'):
         stm = stm.strip().lower()
-        # if 'pkg_utl_truncate_table.truncate_subpart_table' in stm:
-        #     print('1')
         cl_data = clear_data(stm)
         if cl_data:
-            if not (cl_data.startswith('insert') or cl_data.startswith('merge')):
+            if not (cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create')):
                 continue
 
         cl_data = '@'.join(cl_data.split())
-        trg_object = None
-        try:
-            trg_object = trg_re.findall(cl_data)[0][1].strip().lower()
-        except:
-            pass
-        if trg_object:
-            src_objects = src_re.findall(cl_data)
-            with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
 
-            l_sources = [src[1].strip(' ()').lower() for src in src_objects if src[1].strip(' ()') \
-                         and 'select' not in src[1].strip(' ()').lower() \
-                         and 'dual' not in src[1].strip(' ()').lower() \
-                         and src[1].strip(' ()').lower() != trg_object \
-                         and src[1].strip(' ()').lower() not in with_objects]
-            s_sources = set(l_sources)
-            t_sources = tuple([process_prefix(s) for s in s_sources])
+        l_trg_objects = trg_re.findall(cl_data)
+        if l_trg_objects:
+            trg_object = l_trg_objects[0][2].strip().lower()
+        else:
+            l_trg_objects = trg_view_re.findall(cl_data)
+            if l_trg_objects:
+                trg_object = l_trg_objects[0][1].strip().lower()
+            else:
+                continue
 
-            ind_part[trg_object] = t_sources
+        if trg_object == 'pay_revenue_transactions':
+            print(1)
+        src_objects = src_re.findall(cl_data)
+        with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
+
+        s_sources = set()
+        for src in src_objects:
+            val = process_prefix_postfix(src[1].strip(' ();').lower())
+            if val and 'select' not in val and 'dual' not in val and val not in with_objects:
+                s_sources.add(val)
+
+        ind_part[trg_object] = s_sources
 
     # print(ind_part)
     f.close()
@@ -114,7 +127,7 @@ def add_to_index(index, ind_part):
             if k not in index:
                 index[k] = ind_part[k]
             else:
-                res_val = tuple(set(index[k] + ind_part[k]))
+                res_val = index[k] | ind_part[k]  # merge sets
                 index[k] = res_val
 
     del ind_part
@@ -126,25 +139,22 @@ def create_index(root_dir_path, exclude_dir_names=None):
         subdirs[:] = [d for d in subdirs if d not in exclude_dir_names]
         if not files:
             continue
-        print('{0} - {1} - {2}'.format(path, os.path.basename(os.path.dirname(path)), files))
-        for f in files:
-            if not f.endswith('.pks'):
-                # print(os.path.join(path, f))
-                ind_part = process_file(os.path.join(path, f))
-                add_to_index(INDEX, ind_part)
+        print('{0} - {1} - {2}'.format(path, os.path.basename(os.path.dirname(path)), len(files)))
+        # for f in files:
+        #     if f[f.rfind('.'):] in ACCEPTED_FILES_TYPES:
+        #         # print(os.path.join(path, f))
+        #         ind_part = process_file(os.path.join(path, f))
+        #         add_to_index(INDEX, ind_part)
 
     print(INDEX)
 
 
-root_dir_path = r''
+root_dir_path = r'd:\work\PyProjectData\dep_search\svn\trunk\oracle'
 
 create_index(root_dir_path, EXCLUDE_DIR_NAMES)
 
 import sys
+
 print(sys.getsizeof(INDEX))
 
-# process_file(lol_path)
 
-18528
-
-txt = input("wait please")
