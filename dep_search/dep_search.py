@@ -11,13 +11,9 @@ trg_view_re = re.compile('create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.
 src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
 src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
 
-a = {'Python': '.py', 'C++': '.cpp', 'Java': '.java'}
-
-with open('filename.pickle', 'wb') as handle:
-    pickle.dump(a, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-with open('filename.pickle', 'rb') as handle:
-    b = pickle.load(handle)
+#
+# with open('filename.pickle', 'rb') as handle:
+#     b = pickle.load(handle)
 
 
 def clear_data(text):
@@ -69,8 +65,9 @@ def process_prefix_postfix(object_name, op_type='pf'):
         return object_name[dot:]
 
 
-def process_file(file_path):
+def process_file(file_path, schema_name):
     ind_part = {}
+    # print(schema_name)
     f = open(file_path, 'rb')
     try:
         data = f.read().decode('utf-8', 'ignore')
@@ -127,7 +124,6 @@ def add_to_index(index, ind_part):
             else:
                 res_val = index[k] | ind_part[k]  # merge sets
                 index[k] = res_val
-
     del ind_part
     # print(index)
 
@@ -137,22 +133,17 @@ def create_index(root_dir_path, exclude_dir_names=None):
         subdirs[:] = [d for d in subdirs if d not in exclude_dir_names]
         if not files:
             continue
-        print('{0} - {1} - {2}'.format(path, os.path.basename(os.path.dirname(path)), len(files)))
-        # for f in files:
-        #     if f[f.rfind('.'):] in ACCEPTED_FILES_TYPES:
-        #         # print(os.path.join(path, f))
-        #         ind_part = process_file(os.path.join(path, f))
-        #         add_to_index(INDEX, ind_part)
 
-    print(INDEX)
+        for f in files:
+            if f[f.rfind('.'):] in ACCEPTED_FILES_TYPES:
+                ind_part = process_file(os.path.join(path, f), os.path.basename(os.path.dirname(path)))
+                add_to_index(INDEX, ind_part)
+        print('{0} - {1} files processed.'.format(path, len(files)))
+
+    with open('index.pkl', 'wb') as handle:
+        pickle.dump(INDEX, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 root_dir_path = r''
 
 create_index(root_dir_path, EXCLUDE_DIR_NAMES)
-
-import sys
-
-print(sys.getsizeof(INDEX))
-
-
