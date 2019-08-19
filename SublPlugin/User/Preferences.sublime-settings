@@ -1,0 +1,18 @@
+{
+	"color_scheme": "Packages/JCSQL Color Theme/JCSQL.tmTheme",
+	"draw_white_space": "all",
+	"font_size": 11,
+	"gravity_highlight_color_blue": true,
+	"gravity_sidebar_header": true,
+	"gravity_tab_height_short": true,
+	"highlight_line": true,
+	"ignored_packages":
+	[
+		"Vintage"
+	],
+	"show_encoding": true,
+	"tab_size": 4,
+	"theme": "Reverse Gravity.sublime-theme",
+	"translate_tabs_to_spaces": true,
+	"trim_trailing_white_space_on_save": true
+}

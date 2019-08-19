@@ -1,0 +1,9 @@
+<snippet>
+    <content><![CDATA[
+select dbms_metadata.get_ddl( ${1:'TABLE'}, ${2:t}, ${3:'SCHEMA_NAME'} ) from dual
+]]></content>
+    <!-- Optional: Set a tabTrigger to define how to trigger the snippet -->
+    <tabTrigger>mtd</tabTrigger>
+    <!-- Optional: Set a scope to limit where the snippet will trigger -->
+    <scope>source.sql</scope>
+</snippet>

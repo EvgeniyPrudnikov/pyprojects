@@ -1,0 +1,16 @@
+<snippet>
+    <content><![CDATA[
+declare
+    ${1:x}  ${2:date};
+begin
+
+    ${3:null};
+
+end;
+/
+]]></content>
+    <!-- Optional: Set a tabTrigger to define how to trigger the snippet -->
+    <tabTrigger>dec</tabTrigger>
+    <!-- Optional: Set a scope to limit where the snippet will trigger -->
+    <scope>source.sql</scope>
+</snippet>

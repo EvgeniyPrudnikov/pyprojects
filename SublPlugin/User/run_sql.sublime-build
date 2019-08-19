@@ -1,0 +1,41 @@
+{
+    "target": "exec_query",
+    "name": "oracle",
+    "schema_name": "user",
+    "qtype": "oracle_query",
+    "variants":
+    [
+        {
+            "name": "oracle",
+            "schema_name": "user",
+            "qtype": "oracle_query"
+        },
+        {
+            "name": "impala",
+            "schema_name": "user",
+            "qtype": "impala_query"
+        },
+        {
+            "name": "oracle full",
+            "schema_name": "user",
+            "qtype": "oracle_query",
+            "is_full_res": "1"
+        },
+        {
+            "name": "impala full",
+            "schema_name": "user",
+            "qtype": "impala_query",
+            "is_full_res": "1"
+        },
+        {
+            "name": "oracle_explain",
+            "schema_name": "user",
+            "qtype": "oracle_explain"
+        },
+        {
+            "name": "impala_explain",
+            "schema_name": "user",
+            "qtype": "impala_explain"
+        }
+    ]
+}

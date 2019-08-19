@@ -1,0 +1,27 @@
+<snippet>
+    <content><![CDATA[
+declare
+    start_dt    date;
+    end_dt      date;
+    load_date   date;
+begin
+
+    start_dt    := date '2018-12-01';
+    end_dt      := date '2018-12-08';
+    load_date   := start_dt;
+
+    while load_date < end_dt
+    loop
+        pkg_name.load_proc_name(load_date);
+        load_date := load_date + 1;
+        -- load_date := add_months(load_date, 1);
+    end loop;
+
+end;
+/
+]]></content>
+    <!-- Optional: Set a tabTrigger to define how to trigger the snippet -->
+    <tabTrigger>lod</tabTrigger>
+    <!-- Optional: Set a scope to limit where the snippet will trigger -->
+    <scope>source.sql</scope>
+</snippet>
