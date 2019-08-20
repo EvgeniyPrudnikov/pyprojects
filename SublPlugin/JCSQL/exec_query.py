@@ -2,7 +2,7 @@ import sublime
 import sublime_plugin
 import sys
 import os
-import ImapalaOracleSQL.lib as lib
+import JCSQL.lib as lib
 
 
 SETTINGS_FILE_NAME = 'JCSQL.sublime-settings'
