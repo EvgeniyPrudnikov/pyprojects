@@ -94,7 +94,7 @@ class ExecThread(threading.Thread):
 
         data_len = len(data)
         view_size = self.view.size()
-        if data.startswith('ORA-') or data.startswith('PL/SQL:') or data.startswith('ERROR') or data.startswith('PLS-') or 'SQLExecDirectW' in data:
+        if data.startswith('ORA-') or data.startswith('SP2-') or data.startswith('PL/SQL:') or data.startswith('ERROR') or data.startswith('PLS-') or 'SQLExecDirectW' in data:
             self.view.sel().add(self.view.line(sublime.Region(view_size - data_len, view_size)))
             try:
                 self.view.run_command("token_style", {"style_index" : 0})
