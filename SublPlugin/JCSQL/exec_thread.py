@@ -12,7 +12,7 @@ RAND_MAX = 999999999999999
 
 class ExecThreadCommand(sublime_plugin.WindowCommand):
 
-    def run(self, dsn="",is_full_res="", tool="", qtype="", **kwargs):
+    def run(self, dsn="", is_full_res="", tool="", qtype="", tmp_file_name="", **kwargs):
 
         settings = sublime.load_settings(SETTINGS_FILE_NAME)
         client_id = str(randint(0, RAND_MAX))
@@ -21,13 +21,13 @@ class ExecThreadCommand(sublime_plugin.WindowCommand):
 
         cmd = []
         if tool == 'sqlplus':
-            cmd = [tool,'-L', dsn, '@', settings.get("query_tmp_file_full_path")]
+            cmd = [tool,'-L', dsn, '@', tmp_file_name]
         elif tool == 'exec_cx.py':
-            cmd = ['python', settings.get("orcl_query_exec_py_path"), settings.get("query_tmp_file_full_path"), dsn, client_id, is_full_res]
+            cmd = ['python', settings.get("orcl_query_exec_py_path"), tmp_file_name, dsn, client_id, is_full_res]
         elif tool == 'exec_impl.py':
-            cmd = ['python', settings.get("impl_query_exec_py_path"), settings.get("query_tmp_file_full_path"), dsn, qtype, is_full_res]
+            cmd = ['python', settings.get("impl_query_exec_py_path"), tmp_file_name, dsn, qtype, is_full_res]
 
-        self.exec_thread = ExecThread(cmd, output_view)
+        self.exec_thread = ExecThread(cmd, output_view, tmp_file_name)
         self.exec_thread.daemon = True
         self.exec_thread.start()
 
@@ -60,9 +60,10 @@ class ExecThreadCommand(sublime_plugin.WindowCommand):
 
 
 class ExecThread(threading.Thread):
-    def __init__(self, cmd, view):
+    def __init__(self, cmd, view, tmp_file_name):
         self.cmd = cmd
         self.view = view
+        self.tmp_file_name = tmp_file_name
         threading.Thread.__init__(self)
 
 
@@ -71,7 +72,6 @@ class ExecThread(threading.Thread):
 
             CREATE_NO_WINDOW = 0x08000000 # hide cmd window
             popen = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, creationflags=CREATE_NO_WINDOW)
-
             check_thread = threading.Thread(target = self.check_view_proc, args = (self.view, popen, ))
             check_thread.start()
 
@@ -84,6 +84,9 @@ class ExecThread(threading.Thread):
 
         except Exception as e:
             print(str(e))
+        finally:
+            # print(self.tmp_file_name)
+            os.remove(self.tmp_file_name)
 
 
     def append_data(self, data):

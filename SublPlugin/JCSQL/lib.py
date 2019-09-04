@@ -1,10 +1,12 @@
 # Oracle/IMPALA utilities functions
 from random import randint
+import os
 import csv
 import wx
 import wx.dataview
 import numpy as np
 from datetime import datetime
+import time
 import string
 
 RAND_MAX = 999999999999999
@@ -80,7 +82,7 @@ def prepare_explain(query):
 
     LINE_SIZE_PARAM = '''SET LINESIZE 1000;'''
     tool = 'sqlplus'
-    query = '{0}{1}EXPLAIN PLAN FOR\n{2};\nSELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);'.format(LINE_SIZE_PARAM, SQLPLUS_DEFAULT_PARAMS, query.strip(';'))
+    query = "{0}{1}EXPLAIN PLAN FOR\n{2};\nSELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);".format(LINE_SIZE_PARAM, SQLPLUS_DEFAULT_PARAMS, query.strip(';'))
 
     return tool, query
 
@@ -101,7 +103,7 @@ def prepare_impala_explain(query):
     return tool, query
 
 
-def prepare_query_file (view, file_name, flag):
+def prepare_query_file (view, flag):
 
     sel_text = get_text(view)
     if not sel_text:
@@ -117,10 +119,15 @@ def prepare_query_file (view, file_name, flag):
     elif flag == 'impala_explain':
         tool, cl_query = prepare_impala_explain(sel_text)
 
-    with open(file_name, 'w+') as tf:
-        tf.write(cl_query)
+    tmp_file_name = '{path}\\tmp\\tmp_{tool}_dt_{dt}.sql'.format(path=os.path.dirname(__file__), tool=tool[:tool.find('.')], dt=time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))
 
-    return tool
+    try:
+        with open(tmp_file_name, 'w+') as tf:
+            tf.write(cl_query)
+    except Exception as e:
+        print(e)
+
+    return tool, tmp_file_name
 
 
 def pretty_print_result(output):
