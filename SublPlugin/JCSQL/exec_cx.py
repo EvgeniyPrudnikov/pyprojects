@@ -1,4 +1,4 @@
-import cx_Oracle
+import pyodbc
 import sys
 import os
 import time
@@ -11,17 +11,14 @@ def connect_to_db(conn_str, client_id=''):
     db = None
     for x in range(50):  # 50 attempts
         try:
-            db = cx_Oracle.connect(conn_str)
-            db.client_identifier = client_id
+            db = pyodbc.connect(conn_str)
             if db: break
         except Exception as e:
             print(e)
     if not db:
         print('\nCant connect in 50 attempts. Exit 1\n')
         exit(1)
-    else:
-        if client_id:
-            print('\n[{0}] Connected to Oracle {1}; client_id = {2}\n'.format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), db.version, client_id))
+    print('\n[{0}] Connected to Oracle\n'.format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
     return db
 
 

@@ -14,10 +14,8 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
 
         tool, tmp_file_name = lib.prepare_query_file(self.window.active_view(), qtype)
 
-        dsn = lib.get_schema_pass(schema_name, settings.get("pass_file_full_path"), tool)
-
         if not tool:
             print('Some errors occurred')
             return
 
-        self.window.run_command("exec_thread", {"dsn":dsn, "tool":tool, "qtype": qtype, "is_full_res":is_full_res, "tmp_file_name":tmp_file_name})
+        self.window.run_command("exec_thread", {"schema_name":schema_name, "tool":tool, "qtype": qtype, "is_full_res":is_full_res, "tmp_file_name":tmp_file_name})

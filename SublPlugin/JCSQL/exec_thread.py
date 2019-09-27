@@ -5,6 +5,7 @@ import threading
 import time
 import sys
 from random import randint
+import JCSQL.lib as lib
 
 SETTINGS_FILE_NAME = 'JCSQL.sublime-settings'
 RAND_MAX = 999999999999999
@@ -12,12 +13,13 @@ RAND_MAX = 999999999999999
 
 class ExecThreadCommand(sublime_plugin.WindowCommand):
 
-    def run(self, dsn="", is_full_res="", tool="", qtype="", tmp_file_name="", **kwargs):
+    def run(self, schema_name="", is_full_res="", tool="", qtype="", tmp_file_name="", **kwargs):
 
         settings = sublime.load_settings(SETTINGS_FILE_NAME)
         client_id = str(randint(0, RAND_MAX))
-        view_name = dsn.split('/')[0] if dsn.find('impala') < 0 else 'impala'
-        output_view = self.create_view(view_name)
+
+        dsn = lib.get_schema_pass(schema_name, settings.get("pass_file_full_path"), tool)
+        output_view = self.create_view(schema_name if schema_name.find('@') < 0 else 'impala')
 
         cmd = []
         if tool == 'sqlplus':
