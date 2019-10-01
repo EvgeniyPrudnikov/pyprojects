@@ -8,6 +8,7 @@ import numpy as np
 from datetime import datetime
 import time
 import string
+from decimal import Decimal
 
 RAND_MAX = 999999999999999
 # SELECT 'client_id = ' || SYS_CONTEXT('userenv', 'client_identifier') AS client_identifier FROM dual;
@@ -210,7 +211,7 @@ def show_result_in_gui(res_cur):
             result = res_cur.fetchmany(fetch_num)
 
         for row in result:
-            row = tuple([str(r).replace('None', 'NULL') if type(r) == datetime or (type(r) == int and int.bit_length(r) >= 30) or r is None else r for r in row])
+            row = tuple([str(r).replace('None', 'NULL') if type(r) == datetime or type(r) == Decimal or r is None else r for r in row])
             data_view.AppendItem(row)
             data_store.append(row)
 

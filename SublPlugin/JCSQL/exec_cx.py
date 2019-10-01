@@ -33,9 +33,9 @@ def execute_query(db, query_file_name, full_res=0):
 
     try:
         cur.execute(query)
-    except cx_Oracle.DatabaseError as e:
-        print(e)
-        exit(1)
+    except pyodbc.Error as e:
+        msg = e.args[1]
+        print(msg[:msg.find('\n')])
 
     if full_res:
         return cur

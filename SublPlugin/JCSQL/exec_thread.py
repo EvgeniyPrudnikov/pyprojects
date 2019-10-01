@@ -87,7 +87,6 @@ class ExecThread(threading.Thread):
         except Exception as e:
             print(str(e))
         finally:
-            # print(self.tmp_file_name)
             os.remove(self.tmp_file_name)
 
 
@@ -99,7 +98,7 @@ class ExecThread(threading.Thread):
 
         data_len = len(data)
         view_size = self.view.size()
-        if data.startswith('ORA-') or data.startswith('SP2-') or data.startswith('PL/SQL:') or data.startswith('ERROR') or data.startswith('PLS-') or 'SQLExecDirectW' in data:
+        if data.startswith('ORA-') or data.startswith('SP2-') or data.startswith('PL/SQL:') or data.startswith('ERROR') or data.startswith('PLS-') or '[Oracle][ODBC][Ora]' in data:
             self.view.sel().add(self.view.line(sublime.Region(view_size - data_len, view_size)))
             try:
                 self.view.run_command("token_style", {"style_index" : 0})
@@ -117,3 +116,22 @@ class ExecThread(threading.Thread):
                 popen.terminate()
                 sys.exit(1)
             time.sleep(5)
+
+    def flash_window():
+        pass
+        # from ctypes import *
+        # import win32con
+        # import win32gui as w
+        # cur_window = w.GetForegroundWindow() #just get the handler/ID for the current window
+
+        # class FLASHWINFO(Structure):
+        #         _fields_ = [('cbSize', c_uint),
+        #                 ('hwnd', c_uint),
+        #                 ('dwFlags', c_uint),
+        #                 ('uCount', c_uint),
+        #                 ('dwTimeout', c_uint)]
+
+        # '''Flash a window with caption and tray.'''
+        # info = FLASHWINFO(0, hwnd, win32con.FLASHW_ALL | win32con.FLASHW_TIMERNOFG, 0, 0)
+        # info.cbSize = sizeof(info)
+        # FlashWindowEx(byref(info))
