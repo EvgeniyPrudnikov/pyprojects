@@ -7,6 +7,52 @@ import sys
 from random import randint
 import JCSQL.lib as lib
 
+kernel32 = None
+user32 = None
+HWND = None
+
+
+if os.name == 'nt':
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    user32 = ctypes.WinDLL('user32', use_last_error=True)
+
+    FLASHW_STOP = 0
+    FLASHW_CAPTION = 0x00000001
+    FLASHW_TRAY = 0x00000002
+    FLASHW_ALL = 0x00000003
+    FLASHW_TIMER = 0x00000004
+    FLASHW_TIMERNOFG = 0x0000000C
+
+    class FLASHWINFO(ctypes.Structure):
+        _fields_ = (('cbSize', wintypes.UINT),
+                    ('hwnd', wintypes.HWND),
+                    ('dwFlags', wintypes.DWORD),
+                    ('uCount', wintypes.UINT),
+                    ('dwTimeout', wintypes.DWORD))
+
+        def __init__(self, hwnd, flags=FLASHW_TRAY | FLASHW_STOP, count=5, timeout_ms=0):
+            self.cbSize = ctypes.sizeof(self)
+            self.hwnd = hwnd
+            self.dwFlags = flags
+            self.uCount = count
+            self.dwTimeout = timeout_ms
+
+
+    def flash_start_icon(count=1):
+        if os.name != 'nt':
+            return
+        hwndF = user32.GetForegroundWindow()
+        if not hwndF:
+            raise ctypes.WinError(ctypes.get_last_error())
+        winfo = FLASHWINFO(hwndF, count=count)
+        previous_state = user32.FlashWindowEx(ctypes.byref(winfo))
+        return previous_state
+
+
+
 SETTINGS_FILE_NAME = 'JCSQL.sublime-settings'
 RAND_MAX = 999999999999999
 
@@ -62,7 +108,7 @@ class ExecThreadCommand(sublime_plugin.WindowCommand):
 
 
 class ExecThread(threading.Thread):
-    def __init__(self, cmd, view, tmp_file_name):
+    def __init__(self,cmd, view, tmp_file_name):
         self.cmd = cmd
         self.view = view
         self.tmp_file_name = tmp_file_name
@@ -87,6 +133,7 @@ class ExecThread(threading.Thread):
         except Exception as e:
             print(str(e))
         finally:
+            flash_start_icon()
             os.remove(self.tmp_file_name)
 
 
@@ -116,22 +163,3 @@ class ExecThread(threading.Thread):
                 popen.terminate()
                 sys.exit(1)
             time.sleep(5)
-
-    def flash_window():
-        pass
-        # from ctypes import *
-        # import win32con
-        # import win32gui as w
-        # cur_window = w.GetForegroundWindow() #just get the handler/ID for the current window
-
-        # class FLASHWINFO(Structure):
-        #         _fields_ = [('cbSize', c_uint),
-        #                 ('hwnd', c_uint),
-        #                 ('dwFlags', c_uint),
-        #                 ('uCount', c_uint),
-        #                 ('dwTimeout', c_uint)]
-
-        # '''Flash a window with caption and tray.'''
-        # info = FLASHWINFO(0, hwnd, win32con.FLASHW_ALL | win32con.FLASHW_TIMERNOFG, 0, 0)
-        # info.cbSize = sizeof(info)
-        # FlashWindowEx(byref(info))
