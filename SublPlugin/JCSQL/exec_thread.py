@@ -40,14 +40,14 @@ if os.name == 'nt':
             self.uCount = count
             self.dwTimeout = timeout_ms
 
+    HWND = user32.GetForegroundWindow()
 
-    def flash_start_icon(count=1):
+    def flash_start_icon(count=2):
         if os.name != 'nt':
             return
-        hwndF = user32.GetForegroundWindow()
-        if not hwndF:
+        if not HWND:
             raise ctypes.WinError(ctypes.get_last_error())
-        winfo = FLASHWINFO(hwndF, count=count)
+        winfo = FLASHWINFO(HWND, count=count)
         previous_state = user32.FlashWindowEx(ctypes.byref(winfo))
         return previous_state
 
