@@ -1,11 +1,14 @@
 # Oracle/IMPALA utilities functions
 from random import randint
+import os
 import csv
 import wx
 import wx.dataview
 import numpy as np
 from datetime import datetime
+import time
 import string
+from decimal import Decimal
 
 RAND_MAX = 999999999999999
 # SELECT 'client_id = ' || SYS_CONTEXT('userenv', 'client_identifier') AS client_identifier FROM dual;
@@ -28,14 +31,16 @@ def get_schema_pass(schema_name, pass_file_name, tool):
     with open(pass_file_name, 'r') as pass_file:
         for line in pass_file:
             if line.startswith(s):
-                password = line[len(s) + 3:]
+                password = line[len(s) + 3:].strip(' \n\t')
                 break
 
-    if s.startswith('oracle'):
-        return '{0}/{1}@dw_exadata_12c'.format(schema_name, password.strip(' \n\t'))
+    if s.startswith('oracle') and tool == 'sqlplus':
+        return '{0}/{1}@dw_exadata_12c'.format(schema_name, password)
+    elif s.startswith('oracle'):
+        return 'DSN=oracle_odbc; UID={UID}; PWD={PWD}'.format(UID=schema_name, PWD=password)
 
     # return 'DRIVER={0};HOST={1};PORT={2};AuthMech=3;SSL=0;UID={3};PWD={4};'.format('{Cloudera ODBC Driver for Impala}',host, 999, schema_name, password.strip(' \n\t'))
-    return "DSN=impala_odbc"
+    return 'DSN=impala_odbc'
 
 
 def get_text(view):
@@ -80,7 +85,7 @@ def prepare_explain(query):
 
     LINE_SIZE_PARAM = '''SET LINESIZE 1000;'''
     tool = 'sqlplus'
-    query = '{0}{1}EXPLAIN PLAN FOR\n{2};\nSELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);'.format(LINE_SIZE_PARAM, SQLPLUS_DEFAULT_PARAMS, query.strip(';'))
+    query = "{0}{1}EXPLAIN PLAN FOR\n{2};\nSELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);".format(LINE_SIZE_PARAM, SQLPLUS_DEFAULT_PARAMS, query.strip(';'))
 
     return tool, query
 
@@ -101,7 +106,7 @@ def prepare_impala_explain(query):
     return tool, query
 
 
-def prepare_query_file (view, file_name, flag):
+def prepare_query_file (view, flag):
 
     sel_text = get_text(view)
     if not sel_text:
@@ -117,10 +122,15 @@ def prepare_query_file (view, file_name, flag):
     elif flag == 'impala_explain':
         tool, cl_query = prepare_impala_explain(sel_text)
 
-    with open(file_name, 'w+') as tf:
-        tf.write(cl_query)
+    tmp_file_name = '{path}\\tmp\\tmp_{tool}_dt_{dt}.sql'.format(path=os.path.dirname(__file__), tool=tool[:tool.find('.')], dt=time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))
 
-    return tool
+    try:
+        with open(tmp_file_name, 'w+') as tf:
+            tf.write(cl_query)
+    except Exception as e:
+        print(e)
+
+    return tool, tmp_file_name
 
 
 def pretty_print_result(output):
@@ -201,7 +211,7 @@ def show_result_in_gui(res_cur):
             result = res_cur.fetchmany(fetch_num)
 
         for row in result:
-            row = tuple([str(r).replace('None', 'NULL') if type(r) == datetime or (type(r) == int and int.bit_length(r) >= 30) or r is None else r for r in row])
+            row = tuple([str(r).replace('None', 'NULL') if type(r) == datetime or type(r) == Decimal or r is None else r for r in row])
             data_view.AppendItem(row)
             data_store.append(row)
 
