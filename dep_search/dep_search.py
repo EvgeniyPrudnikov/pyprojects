@@ -1,25 +1,33 @@
+import matplotlib as mpl
 import os
 import pickle
+from collections import namedtuple
 import re
-import networkx
+import networkx as nx
+import matplotlib.pyplot as plt
 import sys
 import time
 from datetime import timedelta
 import numpy as np
 
 INDEX = {}
-EXCLUDE_DIR_NAMES = ['dev_dw', 'dev_pr', 'tables', 'sequences','functions', 'synonym', 'types', 'application', 'queries', 'scripts', 'json', 'dev_kiev', 'dev_kiev_pr']
+EXCLUDE_DIR_NAMES = ['dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'synonym',
+                     'types', 'application', 'queries', 'scripts', 'json', 'dev_kiev', 'dev_kiev_pr', 'deploy']
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
+schema_re = re.compile('use@([0-9_a-zA-Z]*);?', re.DOTALL | re.MULTILINE)
 trg_re = re.compile('@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
 trg_view_re = re.compile('create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
 src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
 src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
 
 
+trg_obj_props = namedtuple('trg_obj_props', ['schemas', 'sources'])
+
+
 def clear_data(text):
     # lines clearing
-    text_lines = [line.strip().lower().replace('"','') for line in text.split('\n') if
+    text_lines = [line.strip().lower().replace('"', '') for line in text.split('\n') if
                   line.strip() and not line.strip().startswith('--')]
     # print(text_lines)
     if text_lines is None:
@@ -50,7 +58,7 @@ def clear_data(text):
 
 
 # [DWH specific]
-def if_queal_tables(t1_name, t2_name):
+def if_equal_tables(t1_name, t2_name):
     equal_prefix = ['t_', 'v_', 'c_', 'd_', 'ld_']
     if t1_name[:2] in equal_prefix and t2_name[:2] in equal_prefix:
         return t1_name[2:] == t2_name[2:]
@@ -58,8 +66,8 @@ def if_queal_tables(t1_name, t2_name):
         return False
 
 
-def process_prefix_postfix(object_name, op_type='pf'):
-    dot = object_name.find('.') + 1 if op_type == 'pr' else 0
+def process_prefix_postfix(object_name):
+    dot = object_name.find('.') + 1
     if object_name.find('@') > -1:
         return object_name[dot:object_name.find('@')]
     else:
@@ -68,7 +76,7 @@ def process_prefix_postfix(object_name, op_type='pf'):
 
 def process_file(file_path, schema_name):
     ind_part = {}
-    # print(schema_name)
+
     f = open(file_path, 'rb')
     try:
         data = f.read().decode('utf-8', 'ignore')
@@ -80,11 +88,20 @@ def process_file(file_path, schema_name):
     for stm in data.split(';'):
         stm = stm.strip().lower()
         cl_data = clear_data(stm)
-        if cl_data:
-            if not (cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create')):
+        if len(cl_data) > 0:
+            if not (cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create') or cl_data.startswith('use')):
                 continue
 
         cl_data = '@'.join(cl_data.split())
+
+        if cl_data.startswith('use'):
+            try:
+                res = schema_re.findall(cl_data).pop()
+                if len(res) > 0:
+                    schema_name = res
+                continue
+            except IndexError:
+                continue
 
         l_trg_objects = trg_re.findall(cl_data)
         if l_trg_objects:
@@ -97,22 +114,29 @@ def process_file(file_path, schema_name):
                 continue
 
         if schema_name != 'jenkins':
-            trg_object = (schema_name, process_prefix_postfix(trg_object, op_type='pr'))
-        elif schema_name == 'jenkins':
-            trg_object = (trg_object[:trg_object.find('.')], trg_object[trg_object.find('.') + 1:])
+            trg_object = process_prefix_postfix(trg_object)
+        elif schema_name in ('jenkins', 'hive_sql', 'impala_sql'):
+            schema_name = trg_object[:trg_object.find('.')]
+            trg_object = process_prefix_postfix(trg_object)
+
+        if len(trg_object) == 0:
+            continue
+        # if trg_object == 'af_tourn_aug_intersect_ww':
+        #     print(1)
 
         src_objects = src_re.findall(cl_data)
-        with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
+        with_objects = tuple([item[1].strip().lower()
+                              for item in src_with_catch.findall(cl_data)])
 
         s_sources = set()
         for src in src_objects:
             val = process_prefix_postfix(src[1].strip(' ();').lower())
-            if val and 'select' not in val and 'dual' not in val and val != trg_object[1] and val not in with_objects:
+            if val and 'select' not in val and 'dual' not in val and val != trg_object and val not in with_objects:
                 s_sources.add(val)
 
-        ind_part[trg_object] = s_sources
+        top = trg_obj_props(schemas={schema_name}, sources=s_sources)
+        ind_part[trg_object] = top
 
-    # print(ind_part)
     f.close()
 
     return ind_part
@@ -128,10 +152,10 @@ def add_to_index(index, ind_part):
             if k not in index:
                 index[k] = ind_part[k]
             else:
-                res_val = index[k] | ind_part[k]  # merge sets
+                res_val = trg_obj_props(
+                    sources=index[k].sources | ind_part[k].sources, schemas=index[k].schemas | ind_part[k].schemas)  # merge sets
                 index[k] = res_val
     del ind_part
-    # print(index)
 
 
 def create_index(root_dir_path, exclude_dir_names=[]):
@@ -153,95 +177,90 @@ def create_index(root_dir_path, exclude_dir_names=[]):
     print('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
 
 
-
 root_dir_path = r''
 
 # create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+# exit(1)
 
 with open('index.pkl', 'rb') as pkl:
     INDEX = pickle.load(pkl)
 
-# print(INDEX)
-# exit(1)
+with open('idx', 'w') as f:
+    f.write(str(INDEX))
 
-def get_sources(ind, search_object):
-    l_sources = []
-    if not search_object:
-        return l_sources
-
-    if isinstance(search_object, tuple):
-        l_sources = (search_object, ind[search_object])
-    elif isinstance(search_object, str):
-        for k, v in ind.items():
-            if k[1] == search_object:
-                l_sources = (k, v)
-    if l_sources:
-        return l_sources
-    else:
-        if isinstance(search_object, tuple):
-            return search_object
-        elif isinstance(search_object, str):
-            return (('', search_object),)
+# exit(0)
 
 
+def find_source_path(ind, search_object, lvl=-1, res=[], seen=[]):
 
-def find_source_path(ind, search_object, lvl=-1, res =[]):
-    # res = []
     lvl += 1
-    src_objs = get_sources(ind, search_object)
-    if len(src_objs) == 1:
-        # print(' '*lvl + str(lvl) + str(src_objs))
-        res.append([lvl, src_objs[0]])
+
+    try:
+        src_objs = ind[search_object].sources
+    except KeyError:
         return
-    for o in src_objs[1]:
-        # print(' '*lvl + str(lvl) + str(src_objs[0]) +' <= '+ str(o))
-        find_source_path(ind, o, lvl, res)
-        res.append([lvl, src_objs[0]])
+    if len(src_objs) == 0:
+        return
+    if len(src_objs) == 1:
+        e = src_objs.pop()
+        print(' ' * lvl * 5 + str(lvl) + ' ' + e)
+        res.append((e, search_object,))
+        seen.append(e)
+        return
+    for o in src_objs:
+        if o not in seen:
+            print(' ' * lvl * 5 + str(lvl) + ' ' + o)
+            res.append((o, search_object,))
+            seen.append(o)
+            find_source_path(ind, o, lvl, res, seen)
+
     return res
 
-sys.setrecursionlimit(30)
 
-res = find_source_path(INDEX, '')
+def find_target_path(ind, search_object, lvl=-1, res=[], seen=[]):
 
-res2 = {}
+    lvl += 1
+    trgs = []
 
-for r in res:
-    if r[0] not in res2:
-        res2[r[0]] = [r[1][0] + '.' + r[1][1]]
-    else:
-        res_val = res2[r[0]] + [r[1][0] + '.' + r[1][1]]  # merge sets
-        res2[r[0]] = res_val
+    for k, v in ind.items():
+        if search_object in v.sources:
+            trgs.append(k)
 
+    if len(trgs) == 0:
+        return
 
-print(res2)
-# r4 = sorted(res2, key=lambda x: x[0], reverse=True)
-# r5 = np.array(r4)
-
-def pretty_print(output):
-    # to_str = np.vectorize(str)
-    # get_length = np.vectorize(len)
-    # max_col_length = np.amax(get_length(to_str(output)), axis=1)
-    # print(max_col_length)
-    for k in output:
-        for v in output[k]:
-            print(' '*k*10 + str(k) + ' ' + v)
+    for t in trgs:
+        if t not in seen:
+            print(' ' * lvl * 5 + str(lvl) + ' ' + t)
+            res.append((search_object, t,))
+            seen.append(t)
+            find_target_path(ind, t, lvl, res, seen)
+    return res
 
 
-pretty_print(res2)
 
 
-def pretty_print_result(output):
-    to_str = np.vectorize(str)
-    get_length = np.vectorize(len)
-    max_col_length = np.amax(get_length(to_str(output)), axis=0)
-    print(max_col_length)
+sys.setrecursionlimit(100)
 
-    # print result
-    print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
-    for row_index, row in enumerate(output):
-        print('|' + ''.join([' ' + str(value).replace('None', 'NULL') + ' ' * (max_col_length[index] - len(str(value))) + ' |' for index, value in enumerate(row)]))
-        if row_index == 0 or row_index == len(output) - 1:
-            print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
-    print('\nFetched {0} rows'.format(np.size(output, 0) - 1))
+res_source = find_source_path(INDEX, '')
+res_target = find_target_path(INDEX, '')
 
-# pretty_print_result(r5.transpose())
+print('LEN=', len(res_source) + len(res_target))
+
+g = nx.DiGraph(directed=True)
+
+g.add_edges_from(res_source)
+g.add_edges_from(res_target)
+
+# graph_pos = nx.shell_layout(g)
+
+# nx.draw_networkx_nodes(g, graph_pos, node_size=1000, node_color='blue', alpha=0.3)
+# nx.draw_networkx_edges(g, graph_pos)
+# nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
+
+
+nx.draw(g, with_labels=True, arrows=True, alpha=0.3)
+plt.draw()
+plt.show()
+
+
