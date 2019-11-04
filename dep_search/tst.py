@@ -1,10 +1,8 @@
 
-import plotly.graph_objs as go
-import chart_studio.plotly as py
-import os
-import matplotlib.pyplot as plt
-import networkx as nx
+import time
+import datetime
 from collections import namedtuple
+import os
 
 table = namedtuple("Table", ['name', 'schemas'])
 
@@ -55,7 +53,7 @@ l = [
     'asd.lol@pup', 'asd.lol', 'lol', 'lol@pop'
 ]
 
-#for i in l:
+# for i in l:
 #    print(i,process_prefix_postfix(i), sep=' -> ')
 
 path = r''
@@ -115,14 +113,10 @@ def merge_equal_tables(t_name):
     return t_name
 
 
-l = [
-    'c_wt_acc'
-    , 'd_lol'
-    , 'ld_ld_acc'
-    , 't_t_acc'
-    , 'asd'
-
-]
+l = ['c_wt_acc', 'd_lol', 'ld_ld_acc', 't_t_acc', 'asd']
 for i in l:
     print(i, merge_equal_tables(i), sep=' -> ')
 
+t = time.time().strftime('%Y-%m-%d %H:%M:%S')
+
+print(t)

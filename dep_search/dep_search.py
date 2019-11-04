@@ -140,8 +140,12 @@ def process_file(file_path, schema_name):
             if val and 'select' not in val and 'dual' not in val and val != trg_object and val not in with_objects:
                 s_sources.add(val)
 
-        top = trg_obj_props(schemas={schema_name}, sources=s_sources)
-        ind_part[trg_object] = top
+        if trg_object not in ind_part:
+            top = trg_obj_props(schemas={schema_name}, sources=s_sources )
+            ind_part[trg_object] = top
+        else:
+            top = trg_obj_props(sources=s_sources | ind_part[trg_object].sources, schemas={schema_name})  # merge sets
+            ind_part[trg_object] = top
 
     f.close()
 
@@ -170,11 +174,15 @@ def create_index(root_dir_path, exclude_dir_names=[]):
         subdirs[:] = [d for d in subdirs if d not in exclude_dir_names]
         if not files:
             continue
+        cnt = 0
         for f in files:
             if f[f.rfind('.'):] in ACCEPTED_FILES_TYPES:
                 ind_part = process_file(os.path.join(path, f), os.path.basename(os.path.dirname(path)))
                 add_to_index(INDEX, ind_part)
-        print('{0} - {1} files processed.'.format(path, len(files)))
+                cnt += 1
+        print('{0} - {1} files processed.'.format(path, cnt))
+
+    INDEX['METADATA'] = {'objects': len(INDEX), 'last_update_date': time.time()}
 
     with open('index.pkl', 'wb') as pkl:
         pickle.dump(INDEX, pkl)
@@ -183,16 +191,19 @@ def create_index(root_dir_path, exclude_dir_names=[]):
     print('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
 
 
+
 root_dir_path = r''
 
-create_index(root_dir_path, EXCLUDE_DIR_NAMES)
-exit(0)
+# create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+# exit(0)
 
 with open('index.pkl', 'rb') as pkl:
     INDEX = pickle.load(pkl)
 
 with open('idx', 'w') as f:
     f.write(str(INDEX))
+
+print(INDEX['METADATA'])
 
 exit(0)
 
@@ -202,6 +213,7 @@ def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={
     try:
         src_objs = sorted(list(ind[search_object].sources))
         print(src_objs)
+        print(x)
     except KeyError:
         return
 
@@ -209,8 +221,8 @@ def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={
         return
 
     for o in src_objs:
-        # if o not in seen:
-        if o != '1' and o != '2' and o != '3' and o != '4':
+        if o not in seen:
+        # if o != '1' and o != '2' and o != '3' and o != '4':
             res.append((o, search_object,))
             seen.append(o)
             pos[o] = (x, 0,)
@@ -242,7 +254,7 @@ def find_target_path(ind, search_object, depth=1, x=1, res=[], seen=[], pos={}):
 
 # sys.setrecursionlimit(100)
 
-res_source, pos_source = find_source_path(INDEX, '1')
+res_source, pos_source = find_source_path(INDEX, '',depth=1)
 
 print(res_source)
 # exit(0)
@@ -275,7 +287,7 @@ position_y(pos_source)
 
 
 # pos_source[''] = (0, y1)
-pos_source['1'] = (0, 0)
+pos_source[''] = (0, 0)
 
 # pos_target = {}
 # pos = {**pos_source, **pos_target}
@@ -296,6 +308,6 @@ g.add_edges_from(res_source)
 # nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
 
 
-nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.5, font_size=10, node_shape='o', node_size=200)
+nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.5, font_size=10, node_shape='o', node_size=100)
 plt.draw()
 plt.show()
