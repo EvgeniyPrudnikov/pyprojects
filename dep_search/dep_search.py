@@ -1,3 +1,4 @@
+
 import matplotlib as mpl
 import os
 import pickle
@@ -183,7 +184,7 @@ def create_index(root_dir_path, exclude_dir_names=[]):
 root_dir_path = r''
 
 # create_index(root_dir_path, EXCLUDE_DIR_NAMES)
-# exit(1)
+# exit(0)
 
 with open('index.pkl', 'rb') as pkl:
     INDEX = pickle.load(pkl)
@@ -194,10 +195,9 @@ with open('idx', 'w') as f:
 # exit(0)
 
 
-def find_source_path(ind, search_object, x=0, y=-1, res=[], seen=[], pos={}):
+def find_source_path(ind, search_object, x=0, res=[], seen=[], pos={}):
 
     x -= 1
-    y += 1
 
     try:
         src_objs = ind[search_object].sources
@@ -209,25 +209,26 @@ def find_source_path(ind, search_object, x=0, y=-1, res=[], seen=[], pos={}):
         o = src_objs.pop()
         res.append((o, search_object,))
         seen.append(o)
-        pos[o] = (x, abs(y),)
-        print(' ' * abs(x) * 5 + '(' + str(x) +
-              ', ' + str(abs(y)) + ' )' + ' ' + o)
+        pos[o] = (x, 0,)
+        # print(' ' * abs(x) * 5 + '(' + str(x) +
+        #       ', ' + str(abs(y)) + ' )' + ' ' + o)
         return
-    for i, o in enumerate(src_objs):
+    for o in src_objs:
+        # r = random.random() - 0.5
         if o not in seen:
             res.append((o, search_object,))
             seen.append(o)
-            pos[o] = (x, y + i,)
-            print(' ' * abs(x) * 5 + '(' + str(x) +
-                  ', ' + str(y + i) + ' )' + ' ' + o)
-            find_source_path(ind, o, x, y + i, res, seen, pos)
+            pos[o] = (x, 0,)
+            # print(' ' * abs(x) * 5 + '(' + str(x) +
+            #       ', ' + str(y + i) + ' )' + ' ' + o)
+            find_source_path(ind, o, x, res, seen, pos)
 
     return res, pos
 
 
-def find_target_path(ind, search_object, lvl=-1, res=[], seen=[]):
+def find_target_path(ind, search_object, x=0, res=[], seen=[], pos={}):
 
-    lvl += 1
+    x += 1
     trgs = []
 
     for k, v in ind.items():
@@ -239,32 +240,68 @@ def find_target_path(ind, search_object, lvl=-1, res=[], seen=[]):
 
     for t in trgs:
         if t not in seen:
-            print(' ' * lvl * 5 + str(lvl) + ' ' + t)
+            # print(' ' * lvl * 5 + str(lvl) + ' ' + t)
             res.append((search_object, t,))
             seen.append(t)
-            find_target_path(ind, t, lvl, res, seen)
-    return res
+            pos[t] = (x, 0,)
+            find_target_path(ind, t, x, res, seen, pos)
+    return res, pos
 
 
-sys.setrecursionlimit(100)
+# sys.setrecursionlimit(100)
 
-res_source, pos_source = find_source_path(INDEX, 'cl_wot_acc_actions')
-# res_target = find_target_path(INDEX, 'cl_wot_acc_actions')
+res_source, pos_source = find_source_path(INDEX, '')
+res_target, pos_target = find_target_path(INDEX, '')
+# res_source, pos_source = find_source_path(INDEX, 't_gl_promoscreen_teasers')
+# res_target, pos_target = find_target_path(INDEX, 't_gl_promoscreen_teasers')
 
-# x = round(sum([i[1] for i in pos_source.values() if i[0] == -1 ])/len(pos_source))
-x = 4
-print(x)
+# print(pos_target)
+# exit(0)
 
-pos_source['cl_wot_acc_actions'] = (0, x)
 
-print(pos_source)
+def position_y(pos):
+    ln = {}
+    ln2 = {}
+    for x in pos.values():
+        if x[0] not in ln:
+            ln[x[0]] = 1
+        else:
+            ln[x[0]] += 1
 
+    for j in ln:
+        ln2[j] = [i + 1 for i in range(ln[j])]
+
+    for j in ln:
+        ln[j] = ln[j]//2
+
+    for p in pos.keys():
+        pnt = pos[p]
+        # print(ln2[pnt[0]], ln[pnt[0]], sep=' - ')
+        pos[p] = (pnt[0], ln2[pnt[0]].pop() - ln[pnt[0]])
+
+
+
+# print(pos_source)
+
+position_y(pos_source)
+position_y(pos_target)
+
+
+
+# pos_source[''] = (0, y1)
+pos_source[''] = (0, 0)
+
+# pos_target = {}
+pos = {**pos_source, **pos_target}
 # print('LEN=', len(res_source) + len(res_target))
+
+# print(pos)
+# exit(1)
 
 g = nx.DiGraph(directed=True)
 
 g.add_edges_from(res_source)
-# g.add_edges_from(res_target)
+g.add_edges_from(res_target)
 
 # graph_pos = nx.shell_layout(g)
 
@@ -273,6 +310,6 @@ g.add_edges_from(res_source)
 # nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
 
 
-nx.draw(g, pos_source, with_labels=True, arrows=True, alpha=0.3)
+nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.3)
 plt.draw()
 plt.show()
