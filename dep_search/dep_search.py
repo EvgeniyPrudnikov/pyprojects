@@ -16,10 +16,14 @@ EXCLUDE_DIR_NAMES = ['dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'sy
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 schema_re = re.compile('use@([0-9_a-zA-Z]*);?', re.DOTALL | re.MULTILINE)
-trg_re = re.compile('@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
-trg_view_re = re.compile('create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
-src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
-src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
+trg_re = re.compile(
+    '@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
+trg_view_re = re.compile(
+    'create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
+src_re = re.compile(
+    '@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
+src_with_catch = re.compile(
+    '@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
 
 
 trg_obj_props = namedtuple('trg_obj_props', ['schemas', 'sources'])
@@ -37,12 +41,10 @@ def clear_data(text):
     cl_data = []
     is_multiline_comment = 0
     for line in text_lines:
-        comm1 = line.find('--')
         comm2_start = line.find('/*')
         comm2_end = line.find('*/')
-        if comm1 > -1:
-            line = line[:comm1]
-        elif comm2_start > -1 and comm2_end > -1:
+
+        if comm2_start > -1 and comm2_end > -1:
             line = line[:comm2_start] + line[comm2_end + 2:]
         elif comm2_start > -1 and is_multiline_comment == 0:
             line = line[:comm2_start]
@@ -166,7 +168,8 @@ def create_index(root_dir_path, exclude_dir_names=[]):
             continue
         for f in files:
             if f[f.rfind('.'):] in ACCEPTED_FILES_TYPES:
-                ind_part = process_file(os.path.join(path, f), os.path.basename(os.path.dirname(path)))
+                ind_part = process_file(os.path.join(
+                    path, f), os.path.basename(os.path.dirname(path)))
                 add_to_index(INDEX, ind_part)
         print('{0} - {1} files processed.'.format(path, len(files)))
 
@@ -191,9 +194,10 @@ with open('idx', 'w') as f:
 # exit(0)
 
 
-def find_source_path(ind, search_object, lvl=-1, res=[], seen=[]):
+def find_source_path(ind, search_object, x=0, y=-1, res=[], seen=[], pos={}):
 
-    lvl += 1
+    x -= 1
+    y += 1
 
     try:
         src_objs = ind[search_object].sources
@@ -202,19 +206,22 @@ def find_source_path(ind, search_object, lvl=-1, res=[], seen=[]):
     if len(src_objs) == 0:
         return
     if len(src_objs) == 1:
-        e = src_objs.pop()
-        print(' ' * lvl * 5 + str(lvl) + ' ' + e)
-        res.append((e, search_object,))
-        seen.append(e)
+        o = src_objs.pop()
+        res.append((o, search_object,))
+        seen.append(o)
+        pos[o] = (x, abs(y),)
+        print(' ' * abs(x) * 5 + '(' + str(x) +
+              ', ' + str(abs(y )) + ' )' + ' ' + o)
         return
-    for o in src_objs:
+    for i, o in enumerate(src_objs):
         if o not in seen:
-            print(' ' * lvl * 5 + str(lvl) + ' ' + o)
             res.append((o, search_object,))
             seen.append(o)
-            find_source_path(ind, o, lvl, res, seen)
+            pos[o] = (x, y + i,)
+            print(' ' * abs(x) * 5 + '(' + str(x) + ', ' + str(y + i) + ' )' + ' ' + o)
+            find_source_path(ind, o, x, y + i, res, seen, pos)
 
-    return res
+    return res, pos
 
 
 def find_target_path(ind, search_object, lvl=-1, res=[], seen=[]):
@@ -238,19 +245,25 @@ def find_target_path(ind, search_object, lvl=-1, res=[], seen=[]):
     return res
 
 
-
-
 sys.setrecursionlimit(100)
 
-res_source = find_source_path(INDEX, '')
-res_target = find_target_path(INDEX, '')
+res_source, pos_source = find_source_path(INDEX, 'cl_wot_acc_actions')
+# res_target = find_target_path(INDEX, 'cl_wot_acc_actions')
 
-print('LEN=', len(res_source) + len(res_target))
+# x = round(sum([i[1] for i in pos_source.values() if i[0] == -1 ])/len(pos_source))
+x = 4
+print(x)
+
+pos_source['cl_wot_acc_actions'] = (0, x)
+
+print(pos_source)
+
+# print('LEN=', len(res_source) + len(res_target))
 
 g = nx.DiGraph(directed=True)
 
 g.add_edges_from(res_source)
-g.add_edges_from(res_target)
+# g.add_edges_from(res_target)
 
 # graph_pos = nx.shell_layout(g)
 
@@ -259,8 +272,6 @@ g.add_edges_from(res_target)
 # nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
 
 
-nx.draw(g, with_labels=True, arrows=True, alpha=0.3)
+nx.draw(g, pos_source, with_labels=True, arrows=True, alpha=0.3)
 plt.draw()
 plt.show()
-
-
