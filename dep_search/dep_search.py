@@ -13,7 +13,8 @@ import numpy as np
 
 INDEX = {}
 EXCLUDE_DIR_NAMES = ['dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'synonym',
-                     'types', 'application', 'queries', 'scripts', 'json', 'dev_kiev', 'dev_kiev_pr', 'deploy']
+                     'types', 'application', 'queries', 'scripts', 'json', 'dev_kiev', 'dev_kiev_pr', 'deploy',
+                     'hive_metastore', 'kafka', 'reports', 'scripts', 'triggers', 'additional_tools']
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 schema_re = re.compile('use@([0-9_a-zA-Z]*);?', re.DOTALL | re.MULTILINE)
@@ -42,10 +43,12 @@ def clear_data(text):
     cl_data = []
     is_multiline_comment = 0
     for line in text_lines:
+        comm1 = line.find('--')
         comm2_start = line.find('/*')
         comm2_end = line.find('*/')
-
-        if comm2_start > -1 and comm2_end > -1:
+        if comm1 > -1:
+            line = line[:comm1]
+        elif comm2_start > -1 and comm2_end > -1:
             line = line[:comm2_start] + line[comm2_end + 2:]
         elif comm2_start > -1 and is_multiline_comment == 0:
             line = line[:comm2_start]
@@ -61,12 +64,11 @@ def clear_data(text):
 
 
 # [DWH specific]
-def if_equal_tables(t1_name, t2_name):
-    equal_prefix = ['t_', 'v_', 'c_', 'd_', 'ld_']
-    if t1_name[:2] in equal_prefix and t2_name[:2] in equal_prefix:
-        return t1_name[2:] == t2_name[2:]
-    else:
-        return False
+def merge_equal_tables(t_name):
+    equal_prefix = ['c_', 'd_', 'ld_']
+    if any(map(t_name.startswith, equal_prefix)):
+        return 't' + t_name[t_name.find('_'):]
+    return t_name
 
 
 def process_prefix_postfix(object_name):
@@ -92,7 +94,7 @@ def process_file(file_path, schema_name):
         stm = stm.strip().lower()
         cl_data = clear_data(stm)
         if len(cl_data) > 0:
-            if not (cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create') or cl_data.startswith('use')):
+            if not ( (not cl_data) or cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create') or cl_data.startswith('use') or cl_data.startswith('if')):
                 continue
 
         cl_data = '@'.join(cl_data.split())
@@ -122,10 +124,10 @@ def process_file(file_path, schema_name):
             schema_name = trg_object[:trg_object.find('.')]
             trg_object = process_prefix_postfix(trg_object)
 
+        trg_object = merge_equal_tables(trg_object)
+
         if len(trg_object) == 0:
             continue
-        # if trg_object == 'af_tourn_aug_intersect_ww':
-        #     print(1)
 
         src_objects = src_re.findall(cl_data)
         with_objects = tuple([item[1].strip().lower()
@@ -133,7 +135,8 @@ def process_file(file_path, schema_name):
 
         s_sources = set()
         for src in src_objects:
-            val = process_prefix_postfix(src[1].strip(' ();').lower())
+            val = merge_equal_tables(process_prefix_postfix(
+                src[1].strip(' ();').lower()))
             if val and 'select' not in val and 'dual' not in val and val != trg_object and val not in with_objects:
                 s_sources.add(val)
 
@@ -169,8 +172,7 @@ def create_index(root_dir_path, exclude_dir_names=[]):
             continue
         for f in files:
             if f[f.rfind('.'):] in ACCEPTED_FILES_TYPES:
-                ind_part = process_file(os.path.join(
-                    path, f), os.path.basename(os.path.dirname(path)))
+                ind_part = process_file(os.path.join(path, f), os.path.basename(os.path.dirname(path)))
                 add_to_index(INDEX, ind_part)
         print('{0} - {1} files processed.'.format(path, len(files)))
 
@@ -183,8 +185,8 @@ def create_index(root_dir_path, exclude_dir_names=[]):
 
 root_dir_path = r''
 
-# create_index(root_dir_path, EXCLUDE_DIR_NAMES)
-# exit(0)
+create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+exit(0)
 
 with open('index.pkl', 'rb') as pkl:
     INDEX = pickle.load(pkl)
@@ -192,43 +194,33 @@ with open('index.pkl', 'rb') as pkl:
 with open('idx', 'w') as f:
     f.write(str(INDEX))
 
-# exit(0)
+exit(0)
 
 
-def find_source_path(ind, search_object, x=0, res=[], seen=[], pos={}):
-
-    x -= 1
+def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={}):
 
     try:
-        src_objs = ind[search_object].sources
+        src_objs = sorted(list(ind[search_object].sources))
+        print(src_objs)
     except KeyError:
         return
-    if len(src_objs) == 0:
+
+    if len(src_objs) == 0 or abs(x) > depth:
         return
-    if len(src_objs) == 1:
-        o = src_objs.pop()
-        res.append((o, search_object,))
-        seen.append(o)
-        pos[o] = (x, 0,)
-        # print(' ' * abs(x) * 5 + '(' + str(x) +
-        #       ', ' + str(abs(y)) + ' )' + ' ' + o)
-        return
+
     for o in src_objs:
-        # r = random.random() - 0.5
-        if o not in seen:
+        # if o not in seen:
+        if o != '1' and o != '2' and o != '3' and o != '4':
             res.append((o, search_object,))
             seen.append(o)
             pos[o] = (x, 0,)
-            # print(' ' * abs(x) * 5 + '(' + str(x) +
-            #       ', ' + str(y + i) + ' )' + ' ' + o)
-            find_source_path(ind, o, x, res, seen, pos)
+            find_source_path(ind, o, depth, x-1, res, seen, pos)
 
     return res, pos
 
 
-def find_target_path(ind, search_object, x=0, res=[], seen=[], pos={}):
+def find_target_path(ind, search_object, depth=1, x=1, res=[], seen=[], pos={}):
 
-    x += 1
     trgs = []
 
     for k, v in ind.items():
@@ -244,18 +236,15 @@ def find_target_path(ind, search_object, x=0, res=[], seen=[], pos={}):
             res.append((search_object, t,))
             seen.append(t)
             pos[t] = (x, 0,)
-            find_target_path(ind, t, x, res, seen, pos)
+            find_target_path(ind, t, depth, x + 1, res, seen, pos)
     return res, pos
 
 
 # sys.setrecursionlimit(100)
 
-res_source, pos_source = find_source_path(INDEX, '')
-res_target, pos_target = find_target_path(INDEX, '')
-# res_source, pos_source = find_source_path(INDEX, 't_gl_promoscreen_teasers')
-# res_target, pos_target = find_target_path(INDEX, 't_gl_promoscreen_teasers')
+res_source, pos_source = find_source_path(INDEX, '1')
 
-# print(pos_target)
+print(res_source)
 # exit(0)
 
 
@@ -280,19 +269,17 @@ def position_y(pos):
         pos[p] = (pnt[0], ln2[pnt[0]].pop() - ln[pnt[0]])
 
 
-
 # print(pos_source)
-
 position_y(pos_source)
-position_y(pos_target)
-
+# position_y(pos_target)
 
 
 # pos_source[''] = (0, y1)
-pos_source[''] = (0, 0)
+pos_source['1'] = (0, 0)
 
 # pos_target = {}
-pos = {**pos_source, **pos_target}
+# pos = {**pos_source, **pos_target}
+pos = pos_source
 # print('LEN=', len(res_source) + len(res_target))
 
 # print(pos)
@@ -301,15 +288,14 @@ pos = {**pos_source, **pos_target}
 g = nx.DiGraph(directed=True)
 
 g.add_edges_from(res_source)
-g.add_edges_from(res_target)
+# g.add_edges_from(res_target)
 
-# graph_pos = nx.shell_layout(g)
 
 # nx.draw_networkx_nodes(g, graph_pos, node_size=1000, node_color='blue', alpha=0.3)
 # nx.draw_networkx_edges(g, graph_pos)
 # nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
 
 
-nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.3)
+nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.5, font_size=10, node_shape='o', node_size=200)
 plt.draw()
 plt.show()

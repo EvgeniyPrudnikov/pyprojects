@@ -106,3 +106,23 @@ print(os.path.basename(os.path.dirname(path)))
 # graph = [(20, 21), (21, 22), (22, 23), (23, 24), (24, 25), (25, 20)]
 
 # draw_graph(graph)
+
+# [DWH specific]
+def merge_equal_tables(t_name):
+    equal_prefix = ['c_', 'd_', 'ld_']
+    if any(map(t_name.startswith, equal_prefix)):
+        return 't' + t_name[t_name.find('_'):]
+    return t_name
+
+
+l = [
+    'c_wt_acc'
+    , 'd_lol'
+    , 'ld_ld_acc'
+    , 't_t_acc'
+    , 'asd'
+
+]
+for i in l:
+    print(i, merge_equal_tables(i), sep=' -> ')
+
