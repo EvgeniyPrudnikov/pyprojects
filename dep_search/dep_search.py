@@ -35,9 +35,9 @@ def clear_data(text):
     # lines clearing
     text_lines = [line.strip().lower().replace('"', '') for line in text.split('\n') if
                   line.strip() and not line.strip().startswith('--')]
-    # print(text_lines)
-    if text_lines is None:
-        return None
+
+    if len(text_lines) == 0:
+        return ''
 
     #  comments clearing
     cl_data = []
@@ -90,12 +90,17 @@ def process_file(file_path, schema_name):
         print(file_path + '-- broken')
         return
 
+    starts = ['insert', 'merge', 'create', 'use', 'if']
+
     for stm in data.split(';'):
         stm = stm.strip().lower()
         cl_data = clear_data(stm)
-        if len(cl_data) > 1:
-            if not ((not cl_data) or cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create') or cl_data.startswith('use') or cl_data.startswith('if')):
-                continue
+
+        if len(cl_data) <= 1:
+            continue
+
+        if len(cl_data) > 1 and not any(map(cl_data.startswith, starts)):
+            continue
 
         cl_data = '@'.join(cl_data.split())
 
@@ -135,17 +140,11 @@ def process_file(file_path, schema_name):
 
         s_sources = set()
         for src in src_objects:
-            val = merge_equal_tables(process_prefix_postfix(
-                src[1].strip(' ();').lower()))
+            val = merge_equal_tables(process_prefix_postfix(src[1].strip(' ();').lower()))
             if val and 'select' not in val and 'dual' not in val and val != trg_object and val not in with_objects:
                 s_sources.add(val)
 
-        if trg_object not in ind_part:
-            top = trg_obj_props(schemas={schema_name}, sources=s_sources)
-            ind_part[trg_object] = top
-        else:
-            top = trg_obj_props(sources=s_sources | ind_part[trg_object].sources, schemas={schema_name})  # merge sets
-            ind_part[trg_object] = top
+        add_to_index(ind_part, {trg_object: trg_obj_props(schemas={schema_name}, sources=s_sources)})
 
     f.close()
 
@@ -211,7 +210,6 @@ def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={
 
     try:
         src_objs = sorted(list(ind[search_object].sources))
-        # print(x, search_object, src_objs, sep=' -> ')
     except KeyError:
         return
 
@@ -221,12 +219,10 @@ def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={
     for o in src_objs:
         if o not in seen:
             res.append((o, search_object,))
-            print(' new ', o, search_object, sep=' -> ')
             seen.append(o)
             pos[o] = (x, 0,)
             find_source_path(ind, o, depth, x-1, res, seen, pos)
         else:
-            print(' seen ', o, search_object, sep=' -> ')
             res.append((o, search_object,))
             pos[o] = (x, 0,)
 
@@ -251,13 +247,16 @@ def find_target_path(ind, search_object, depth=999, x=1, res=[], seen=[], pos={}
             seen.append(t)
             pos[t] = (x, 0,)
             find_target_path(ind, t, depth, x + 1, res, seen, pos)
+        else:
+            res.append((search_object, t,))
+            pos[t] = (x, 0,)
     return res, pos
 
 
 # sys.setrecursionlimit(100)
 
 # res_source, pos_source = find_source_path(INDEX, '')
-res_source, pos_source = find_source_path(INDEX, '', depth=2)
+res_source, pos_source = find_source_path(INDEX, '')
 
 print(res_source)
 # exit(0)
@@ -280,7 +279,6 @@ def position_y(pos):
 
     for p in pos.keys():
         pnt = pos[p]
-        # print(ln2[pnt[0]], ln[pnt[0]], sep=' - ')
         pos[p] = (pnt[0], ln2[pnt[0]].pop() - ln[pnt[0]])
 
 
@@ -304,6 +302,10 @@ print(len(pos_source))
 g = nx.DiGraph(directed=True)
 
 g.add_edges_from(res_source)
+
+for x in res_source:
+    print(x[0], x[1], sep=' -> ')
+
 # g.add_edges_from(res_target)
 
 
@@ -312,7 +314,6 @@ g.add_edges_from(res_source)
 # nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
 
 
-nx.draw(g,pos, with_labels=True, arrows=True, alpha=0.5,
-        font_size=10, node_shape='o', node_size=100)
+nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.5, font_size=10, node_shape='o', node_size=100)
 plt.draw()
 plt.show()
