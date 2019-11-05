@@ -1,4 +1,12 @@
 
+import numpy as np
+from datetime import timedelta
+import sys
+import matplotlib.pyplot as plt
+import networkx as nx
+import re
+import pickle
+import matplotlib as mpl
 import time
 import datetime
 from collections import namedtuple
@@ -117,6 +125,23 @@ l = ['c_wt_acc', 'd_lol', 'ld_ld_acc', 't_t_acc', 'asd']
 for i in l:
     print(i, merge_equal_tables(i), sep=' -> ')
 
-t = time.time().strftime('%Y-%m-%d %H:%M:%S')
 
-print(t)
+res_source = [('A','B'), ('B','C')]
+
+print()
+
+g = nx.DiGraph(directed=True)
+
+g.add_edges_from(res_source)
+# g.add_edges_from(res_target)
+
+
+# nx.draw_networkx_nodes(g, graph_pos, node_size=1000, node_color='blue', alpha=0.3)
+# nx.draw_networkx_edges(g, graph_pos)
+# nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
+
+
+nx.draw(g, with_labels=True, arrows=True, alpha=0.5,
+        font_size=10, node_shape='o', node_size=100)
+plt.draw()
+plt.show()

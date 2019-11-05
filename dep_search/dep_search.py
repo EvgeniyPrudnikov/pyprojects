@@ -60,7 +60,7 @@ def clear_data(text):
             continue
         if line:
             cl_data.append(line)
-    return '\n'.join(cl_data)
+    return '\n'.join(cl_data) + '@'
 
 
 # [DWH specific]
@@ -93,8 +93,8 @@ def process_file(file_path, schema_name):
     for stm in data.split(';'):
         stm = stm.strip().lower()
         cl_data = clear_data(stm)
-        if len(cl_data) > 0:
-            if not ( (not cl_data) or cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create') or cl_data.startswith('use') or cl_data.startswith('if')):
+        if len(cl_data) > 1:
+            if not ((not cl_data) or cl_data.startswith('insert') or cl_data.startswith('merge') or cl_data.startswith('create') or cl_data.startswith('use') or cl_data.startswith('if')):
                 continue
 
         cl_data = '@'.join(cl_data.split())
@@ -141,7 +141,7 @@ def process_file(file_path, schema_name):
                 s_sources.add(val)
 
         if trg_object not in ind_part:
-            top = trg_obj_props(schemas={schema_name}, sources=s_sources )
+            top = trg_obj_props(schemas={schema_name}, sources=s_sources)
             ind_part[trg_object] = top
         else:
             top = trg_obj_props(sources=s_sources | ind_part[trg_object].sources, schemas={schema_name})  # merge sets
@@ -191,7 +191,6 @@ def create_index(root_dir_path, exclude_dir_names=[]):
     print('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
 
 
-
 root_dir_path = r''
 
 # create_index(root_dir_path, EXCLUDE_DIR_NAMES)
@@ -205,15 +204,14 @@ with open('idx', 'w') as f:
 
 print(INDEX['METADATA'])
 
-exit(0)
+# exit(0)
 
 
 def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={}):
 
     try:
         src_objs = sorted(list(ind[search_object].sources))
-        print(src_objs)
-        print(x)
+        # print(x, search_object, src_objs, sep=' -> ')
     except KeyError:
         return
 
@@ -222,16 +220,20 @@ def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={
 
     for o in src_objs:
         if o not in seen:
-        # if o != '1' and o != '2' and o != '3' and o != '4':
             res.append((o, search_object,))
+            print(' new ', o, search_object, sep=' -> ')
             seen.append(o)
             pos[o] = (x, 0,)
             find_source_path(ind, o, depth, x-1, res, seen, pos)
+        else:
+            print(' seen ', o, search_object, sep=' -> ')
+            res.append((o, search_object,))
+            pos[o] = (x, 0,)
 
     return res, pos
 
 
-def find_target_path(ind, search_object, depth=1, x=1, res=[], seen=[], pos={}):
+def find_target_path(ind, search_object, depth=999, x=1, res=[], seen=[], pos={}):
 
     trgs = []
 
@@ -239,7 +241,7 @@ def find_target_path(ind, search_object, depth=1, x=1, res=[], seen=[], pos={}):
         if search_object in v.sources:
             trgs.append(k)
 
-    if len(trgs) == 0:
+    if len(trgs) == 0 and abs(x) > depth:
         return
 
     for t in trgs:
@@ -254,7 +256,8 @@ def find_target_path(ind, search_object, depth=1, x=1, res=[], seen=[], pos={}):
 
 # sys.setrecursionlimit(100)
 
-res_source, pos_source = find_source_path(INDEX, '',depth=1)
+# res_source, pos_source = find_source_path(INDEX, '')
+res_source, pos_source = find_source_path(INDEX, '', depth=2)
 
 print(res_source)
 # exit(0)
@@ -287,6 +290,7 @@ position_y(pos_source)
 
 
 # pos_source[''] = (0, y1)
+# pos_source[''] = (0, 0)
 pos_source[''] = (0, 0)
 
 # pos_target = {}
@@ -294,7 +298,7 @@ pos_source[''] = (0, 0)
 pos = pos_source
 # print('LEN=', len(res_source) + len(res_target))
 
-# print(pos)
+print(len(pos_source))
 # exit(1)
 
 g = nx.DiGraph(directed=True)
@@ -308,6 +312,7 @@ g.add_edges_from(res_source)
 # nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
 
 
-nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.5, font_size=10, node_shape='o', node_size=100)
+nx.draw(g,pos, with_labels=True, arrows=True, alpha=0.5,
+        font_size=10, node_shape='o', node_size=100)
 plt.draw()
 plt.show()
