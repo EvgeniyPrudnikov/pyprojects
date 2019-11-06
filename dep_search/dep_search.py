@@ -135,8 +135,7 @@ def process_file(file_path, schema_name):
             continue
 
         src_objects = src_re.findall(cl_data)
-        with_objects = tuple([item[1].strip().lower()
-                              for item in src_with_catch.findall(cl_data)])
+        with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
 
         s_sources = set()
         for src in src_objects:
@@ -234,10 +233,10 @@ def find_target_path(ind, search_object, depth=999, x=1, res=[], seen=[], pos={}
     trgs = []
 
     for k, v in ind.items():
-        if search_object in v.sources:
+        if k != 'METADATA' and search_object in v.sources:
             trgs.append(k)
 
-    if len(trgs) == 0 and abs(x) > depth:
+    if len(trgs) == 0 or abs(x) > depth:
         return
 
     for t in trgs:
@@ -255,10 +254,11 @@ def find_target_path(ind, search_object, depth=999, x=1, res=[], seen=[], pos={}
 
 # sys.setrecursionlimit(100)
 
+res_target, pos_target = find_target_path(INDEX, '',depth= 1)
+# res_target =[], pos_target = {}
 # res_source, pos_source = find_source_path(INDEX, '')
-res_source, pos_source = find_source_path(INDEX, '')
 
-print(res_source)
+# print(res_source)
 # exit(0)
 
 
@@ -283,30 +283,33 @@ def position_y(pos):
 
 
 # print(pos_source)
-position_y(pos_source)
-# position_y(pos_target)
+# position_y(pos_source)
+position_y(pos_target)
 
 
 # pos_source[''] = (0, y1)
 # pos_source[''] = (0, 0)
-pos_source[''] = (0, 0)
+# pos_source[''] = (0, 0)
+pos_target[''] = (0, 0)
 
 # pos_target = {}
 # pos = {**pos_source, **pos_target}
-pos = pos_source
+# pos = pos_source
+pos = pos_target
 # print('LEN=', len(res_source) + len(res_target))
 
-print(len(pos_source))
+# print(len(pos_source))
+print(len(pos_target))
 # exit(1)
 
 g = nx.DiGraph(directed=True)
 
-g.add_edges_from(res_source)
+# g.add_edges_from(res_source)
 
-for x in res_source:
-    print(x[0], x[1], sep=' -> ')
+# for x in res_source:
+#     print(x[0], x[1], sep=' -> ')
 
-# g.add_edges_from(res_target)
+g.add_edges_from(res_target)
 
 
 # nx.draw_networkx_nodes(g, graph_pos, node_size=1000, node_color='blue', alpha=0.3)
