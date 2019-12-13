@@ -2,13 +2,16 @@
 from random import randint
 import os
 import csv
-import wx
-import wx.dataview
-import numpy as np
 from datetime import datetime
 import time
 import string
 from decimal import Decimal
+try:
+    import wx
+    import wx.dataview
+    import numpy as np
+except:
+    pass
 
 RAND_MAX = 999999999999999
 # SELECT 'client_id = ' || SYS_CONTEXT('userenv', 'client_identifier') AS client_identifier FROM dual;
@@ -28,16 +31,19 @@ def get_schema_pass(schema_name, pass_file_name, tool):
     host = ''
     s = 'oracle {0}'.format(schema_name) if schema_name.find('@') < 0 else 'impala {0}'.format(schema_name)
 
-    with open(pass_file_name, 'r') as pass_file:
-        for line in pass_file:
-            if line.startswith(s):
-                password = line[len(s) + 3:].strip(' \n\t')
-                break
+    try:
+        with open(pass_file_name, 'r') as pass_file:
+            for line in pass_file:
+                if line.startswith(s):
+                    password = line[len(s) + 3:].strip(' \n\t')
+                    break
+    except:
+        pass
 
     if s.startswith('oracle') and tool == 'sqlplus':
-        return '{0}/{1}@dw_exadata_12c'.format(schema_name, password)
+        return 'js/js@orcl'.format(schema_name, password)
     elif s.startswith('oracle'):
-        return 'DSN=oracle_odbc; UID={UID}; PWD={PWD}'.format(UID=schema_name, PWD=password)
+        return 'DSN=oracle_odbc; UID=js; PWD=js'.format(UID=schema_name, PWD=password)
 
     # return 'DRIVER={0};HOST={1};PORT={2};AuthMech=3;SSL=0;UID={3};PWD={4};'.format('{Cloudera ODBC Driver for Impala}',host, 999, schema_name, password.strip(' \n\t'))
     return 'DSN=impala_odbc'
