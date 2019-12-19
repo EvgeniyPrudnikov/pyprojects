@@ -6,6 +6,7 @@ import threading
 import time
 import sys
 from .lib import *
+import traceback
 
 kernel32 = None
 user32 = None
@@ -51,8 +52,13 @@ if os.name == 'nt':
         previous_state = user32.FlashWindowEx(ctypes.byref(winfo))
         return previous_state
 
+settings = None
 
-settings = sublime.load_settings('JCSQL.sublime-settings')
+
+def plugin_loaded():
+    global settings
+    settings = sublime.load_settings('JCSQL.sublime-settings')
+
 
 VIEW_THREADS = {}
 
@@ -64,7 +70,7 @@ class EraseCommand(sublime_plugin.TextCommand):
 
 class ExecQueryCommand(sublime_plugin.WindowCommand):
 
-    def run(self, view_id="", conn="", qtype="query"):
+    def run(self, view_id="", conn=None, qtype="query"):
 
         if view_id != '':
             self.load_data(view_id)
@@ -107,7 +113,8 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
             popen.stdin.write('load:{0}\n'.format(settings.get('fetch_num')).encode('utf-8'))
             popen.stdin.flush()
         except Exception as e:
-            print(e)
+            # print(e)
+            traceback.print_exc()
             return
 
     def create_view(self, view_name):
@@ -154,6 +161,7 @@ class ExecThread(threading.Thread):
             check_thread.start()
 
             stdout_lines = iter(self.popen.stdout.readline, b'')
+            print(stdout_lines)
             for stdout_line in stdout_lines:
                 ok = self.append_data('{0}\n'.format(stdout_line.decode('cp437').strip('\r\n')))
                 if not ok:
@@ -161,7 +169,8 @@ class ExecThread(threading.Thread):
             self.popen.stdout.close()
 
         except Exception as e:
-            print(e)
+            # print_tb(e)
+            traceback.print_exc()
         finally:
             flash_start_icon()
             os.remove(self.tmp_file_name)

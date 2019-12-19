@@ -5,15 +5,19 @@ from .connection_store import *
 import time
 
 
-settings = sublime.load_settings('JCSQL.sublime-settings')
+settings = None
+conn_store = None
 
-if not settings.get('client'):
-    settings.set('client', os.path.join(sublime.packages_path(), 'JCSQL', 'client.py'))
-    settings.set('pass', os.path.join(sublime.packages_path(), 'JCSQL', 'pass'))
-    settings.set('fetch_num', '65')
-    sublime.save_settings('JCSQL.sublime-settings')
 
-conn_store = ConnectionStore(os.path.join(sublime.packages_path(), 'JCSQL', 'pass'))
+def plugin_loaded():
+    global settings, conn_store
+    settings = sublime.load_settings('JCSQL.sublime-settings')
+    if not settings.get('client'):
+        settings.set('client', os.path.join(sublime.packages_path(), 'JCSQL', 'client.py'))
+        settings.set('pass', os.path.join(sublime.packages_path(), 'JCSQL', 'pass'))
+        settings.set('fetch_num', '65')
+        sublime.save_settings('JCSQL.sublime-settings')
+    conn_store = ConnectionStore(settings.get('pass'))
 
 
 class AddConnectionCommand(sublime_plugin.WindowCommand):
@@ -40,7 +44,8 @@ class RunCodeCommand(sublime_plugin.WindowCommand):
 
 class RunCodeInCommand(sublime_plugin.WindowCommand):
 
-    def run(self, conn="", qtype="query"):
+    def run(self, conn=None, qtype="query"):
+
         if conn:
             self.window.run_command("exec_query", {"conn": conn, "qtype": qtype})
         else:

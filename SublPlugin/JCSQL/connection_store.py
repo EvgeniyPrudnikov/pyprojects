@@ -61,7 +61,6 @@ class ConnectionStore(object):
         w.show_quick_panel(conn_list, _on_modify_conn, 0, 0, None)
 
     def _on_add_modify_conn(self, conn_json):
-        print(conn_json)
         if len(conn_json) > 0:
             try:
                 j = json.loads(conn_json)
