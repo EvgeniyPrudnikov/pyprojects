@@ -1,0 +1,27 @@
+[
+    {
+        "caption": "JCSQL: Add New Connection",
+        "command": "add_connection"
+    },
+    {
+        "caption": "JCSQL: Delete Connection",
+        "command": "delete_connection"
+    },
+    {
+        "caption": "JCSQL: Modify Connection",
+        "command": "modify_connection"
+    },
+    {
+        "caption": "JCSQL: RunCode",
+        "command": "run_code"
+    },
+    {
+        "caption": "JCSQL: RunCodeIn",
+        "command": "run_code_in"
+    },
+    {
+        "caption": "JCSQL: ExplainPlan",
+        "command": "explain_plan"
+    }
+
+]
