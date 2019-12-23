@@ -2,6 +2,7 @@
 import json
 import os
 import csv
+import traceback
 from datetime import datetime
 import time
 import string
@@ -40,12 +41,10 @@ def get_text(view):
         return ''
 
     text = selected_text.strip('; \t\n\r')
-    # text = ''.join([t for t in text if t in string.printable])
     return text
 
 
 def prepare_oracle(query, qtype, is_query_dml):
-
     if qtype == 'query':
         if is_query_dml:
             tool = 'python'
@@ -60,18 +59,20 @@ def prepare_oracle(query, qtype, is_query_dml):
         LINE_SIZE_PARAM = '''SET LINESIZE 1000;'''
         query = "{0}{1}EXPLAIN PLAN FOR\n{2};\nSELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);".format(LINE_SIZE_PARAM, SQLPLUS_DEFAULT_PARAMS, query)
 
-    return tool, query
+    return tool, query, None
 
 
 def prepare_impala(query, qtype, is_query_dml):
     tool = 'python'
     if qtype == 'explain':
         query = 'EXPLAIN\n {0}'.format(query)
-    return tool, query
+
+    fetch = -1 if is_query_dml == 0 else None
+
+    return tool, query, fetch
 
 
 def prepare_query_file(view, env, qtype):
-
     sel_text = get_text(view)
     if not sel_text:
         print('nothing selected')
@@ -80,37 +81,20 @@ def prepare_query_file(view, env, qtype):
     is_query_dml = any(map(sel_text[:6].lower().startswith, ['select', 'with']))
 
     if env == 'oracle':
-        tool, cl_query = prepare_oracle(sel_text, qtype, is_query_dml)
+        tool, cl_query, fetch = prepare_oracle(sel_text, qtype, is_query_dml)
     elif env == 'impala':
-        tool, cl_query = prepare_impala(sel_text, qtype, is_query_dml)
+        tool, cl_query, fetch = prepare_impala(sel_text, qtype, is_query_dml)
 
     tmp_file_name = 'tmp_{tool}_dt_{dt}.sql'.format(tool=tool, dt=time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))
     tmp_file_path = os.path.join(os.path.dirname(__file__), 'tmp', tmp_file_name)
 
     try:
-        with open(tmp_file_path, 'w+') as tf:
-            tf.write(cl_query)
+        with open(tmp_file_path, 'wb+') as tf:
+            tf.write(cl_query.encode('utf-8'))
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
-    return tool, tmp_file_path
-
-
-def pretty_print_result(output):
-
-    l_output = np.array(output)
-    to_str = np.vectorize(str)
-    get_length = np.vectorize(len)
-    max_col_length = np.amax(get_length(to_str(l_output)), axis=0)
-
-    # print result
-    print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
-    for row_index, row in enumerate(l_output):
-        print('|' + ''.join([' ' + str(value).replace('None', 'NULL') + ' ' * (max_col_length[index] - len(str(value))) + ' |' for index, value in enumerate(row)]))
-        if row_index == 0 or row_index == len(l_output) - 1:
-            print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
-
-    print('\nFetched {0} rows'.format(np.size(l_output, 0) - 1))
+    return tool, tmp_file_path, fetch
 
 
 def result_to_csv(file_path, headers, dataset):

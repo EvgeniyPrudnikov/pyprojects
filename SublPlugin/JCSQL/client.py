@@ -3,8 +3,7 @@ import sys
 import time
 from datetime import timedelta
 import threading
-from queue import Queue
-from lib import *
+from collections import deque
 try:
     import numpy as np
     import pyodbc
@@ -17,9 +16,27 @@ PRINT_FOOTER = []
 PRINT_LOAD = '(...)'
 
 
-def print_header_footer(l):
-    for h in l:
-        print(h)
+def print_all(output):
+    print(*PRINT_HEADER, sep='\n', flush=True)
+    pretty_print_result(output)
+    print(*PRINT_FOOTER, sep='\n', flush=True)
+    sys.stdout.flush()
+
+
+def pretty_print_result(output):
+    l_output = np.array(output)
+    to_str = np.vectorize(str)
+    get_length = np.vectorize(len)
+    max_col_length = np.amax(get_length(to_str(l_output)), axis=0)
+
+    # print result
+    print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
+    for row_index, row in enumerate(l_output):
+        print('|' + ''.join([' ' + str(value).replace('None', 'NULL') + ' ' * (max_col_length[index] - len(str(value))) + ' |' for index, value in enumerate(row)]))
+        if row_index == 0 or row_index == len(l_output) - 1:
+            print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
+
+    print('\nFetched {0} rows'.format(np.size(l_output, 0) - 1))
 
 
 def connect_to_db(conn_str, env):
@@ -40,81 +57,40 @@ def connect_to_db(conn_str, env):
     return db
 
 
-def fetch_data(cur, res, fetch_num=100, with_header=False):
-    headers = tuple([i[0].lower() for i in cur.description])
-    result = cur.fetchmany(fetch_num)
+def fetch_data(cur, res, fetch_num, with_header=False):
     if with_header:
-        result.insert(0, headers)
+        headers = tuple([i[0].lower() for i in cur.description])
+        res.append(headers)
+
+    if fetch_num == -1:
+        res += cur.fetchall()
+        return -1
+
+    result = cur.fetchmany(fetch_num)
     res += result
+
     if len(result) == 0 or len(result) <= fetch_num - 1:
         return -1
     return len(result)
 
 
-def exec_query(cur, fetch_num):
-    result = []
-    rows_cnt = fetch_data(cur, result, fetch_num=fetch_num, with_header=True)
-
-    print_header_footer(PRINT_HEADER)
-    pretty_print_result(result)
-    print_header_footer(PRINT_FOOTER)
-    sys.stdout.flush()
-
-    if rows_cnt < 0:
-        cur.close()
-        os._exit(0)
-
-    print(PRINT_LOAD, flush=True)
-    PRINT_FOOTER.append(PRINT_LOAD)
-
-    # default timeout 30 sec
-    timeout = time.time() + 30
-    input_msgs = Queue()
-
-    def read_input(msg_q):
-        while True:
-            msg_q.put(sys.stdin.readline())
-
-    input_t = threading.Thread(target=read_input, args=(input_msgs,))
-    input_t.daemon = True
-    input_t.start()
-
-    while time.time() < timeout:
-        try:
-            if input_msgs.empty():
-                time.sleep(0.2)
-                continue
-
-            cmd = input_msgs.get().split(':')
-
-            if cmd[0] == 'load':
-                rows_cnt = fetch_data(cur, result, fetch_num=int(cmd[1]))
-                print_header_footer(PRINT_HEADER)
-                pretty_print_result(result)
-                print_header_footer(PRINT_FOOTER)
-                sys.stdout.flush()
-                if rows_cnt < 0:
-                    break
-                timeout += 10
-            else:
-                break
-        except Exception as e:
-            raise Exception(str(e))
-    cur.close()
+def read_input(msg_q):
+    while True:
+        msg_q.append(sys.stdin.readline())
 
 
 def main():
     env = sys.argv[1]
     conn_str = sys.argv[2]
     query_file_name = sys.argv[3]
-    qtype = sys.argv[4]  # query, explain
+    qtype = sys.argv[4]
     fetch_num = int(sys.argv[5])
     query = ''
     sys.path.append(os.path.dirname(query_file_name))
 
     try:
-        with open(query_file_name, 'r') as f:
-            query = f.read()
+        with open(query_file_name, 'rb') as f:
+            query = f.read().decode('utf-8')
 
         PRINT_HEADER.append(query)
 
@@ -124,15 +100,50 @@ def main():
         cur.execute(query)
         end = time.time()
         PRINT_FOOTER.append('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
-        exec_query(cur, fetch_num)
+
+        output = []
+        rows_cnt = fetch_data(cur, output, fetch_num, with_header=True)
+
+        print_all(output)
+
+        if rows_cnt < 0:
+            cur.close()
+            os._exit(0)
+
+        print(PRINT_LOAD, flush=True)
+        PRINT_FOOTER.append(PRINT_LOAD)
+
+        # default timeout 30 sec
+        timeout = time.time() + 30
+        input_msgs = deque()
+
+        input_t = threading.Thread(target=read_input, args=(input_msgs,))
+        input_t.daemon = True
+        input_t.start()
+
+        while time.time() < timeout:
+            if len(input_msgs) == 0:
+                time.sleep(0.2)
+                continue
+
+            cmd = input_msgs.popleft().split('==')
+            if cmd[0] == 'load':
+                rows_cnt = fetch_data(cur, output, int(cmd[1]))
+                print_all(output)
+                if rows_cnt < 0:
+                    break
+                timeout += 10
+            else:
+                break
 
     except Exception as e:
         e_msg = str(e) + '\n'
-        print_header_footer(PRINT_HEADER)
+        print(*PRINT_HEADER, sep='\n', flush=True)
         print(e_msg, flush=True)
         os._exit(1)
 
     sys.stdout.flush()
+    cur.close()
     db.close()
     os._exit(0)
 

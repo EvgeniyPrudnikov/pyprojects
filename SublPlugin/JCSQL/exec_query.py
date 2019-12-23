@@ -6,8 +6,12 @@ import threading
 import time
 import sys
 from .lib import *
+from .jcsql_help_commands import *
 import traceback
 
+#---------------------------------------------------------------------------
+# win specific
+# --------------------------------------------------------------------------
 kernel32 = None
 user32 = None
 HWND = None
@@ -51,6 +55,8 @@ if os.name == 'nt':
         winfo = FLASHWINFO(HWND, count=count)
         previous_state = user32.FlashWindowEx(ctypes.byref(winfo))
         return previous_state
+# --------------------------------------------------------------------------
+
 
 settings = None
 
@@ -63,25 +69,16 @@ def plugin_loaded():
 VIEW_THREADS = {}
 
 
-class EraseCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        self.view.erase(edit, sublime.Region(0, self.view.size()))
-
-
 class ExecQueryCommand(sublime_plugin.WindowCommand):
-
-    def run(self, view_id="", conn=None, qtype="query"):
-
+    def run(self, view_id="", fetch=None, conn=None, qtype="query"):
         if view_id != '':
-            self.load_data(view_id)
+            self.load_data(view_id, fetch)
         else:
             self.new_thread(conn, qtype)
 
     def new_thread(self, conn, qtype):
-
         env = conn['environment']
-
-        tool, tmp_file_name = prepare_query_file(self.window.active_view(), env, qtype) or (None, None)
+        tool, tmp_file_name, fetch = prepare_query_file(self.window.active_view(), env, qtype) or (None, None, None)
         if tool is None:
             return
 
@@ -92,7 +89,8 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
         if tool == 'sqlplus':
             cmd = [tool, '-L', conn['connection_string'], '@', tmp_file_name]
         elif tool == 'python':
-            cmd = [tool, settings.get("client"), env, conn['connection_string'], tmp_file_name, qtype, settings.get('fetch_num')]
+            fetch_num = settings.get('fetch_num') if fetch is None else fetch
+            cmd = [tool, settings.get("client"), env, conn['connection_string'], tmp_file_name, qtype, fetch_num]
 
         self.exec_thread = ExecThread(cmd, output_view, tmp_file_name)
         self.exec_thread.daemon = True
@@ -100,25 +98,26 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
 
         VIEW_THREADS[output_view.id()] = self.exec_thread
 
-    def load_data(self, vid):
+    def load_data(self, vid, fetch):
         try:
-            view_thread = VIEW_THREADS[vid]
+            if vid in VIEW_THREADS:
+                view_thread = VIEW_THREADS[vid]
+            else:
+                return
             view = view_thread.view
             popen = view_thread.popen
 
-            # view.sel().clear()
             view.set_read_only(False)
             view.run_command('erase')
 
-            popen.stdin.write('load:{0}\n'.format(settings.get('fetch_num')).encode('utf-8'))
+            fetch_num = settings.get('fetch_num') if fetch is None else fetch
+            popen.stdin.write('load=={0}\n'.format(fetch_num).encode('utf-8'))
             popen.stdin.flush()
         except Exception as e:
-            # print(e)
             traceback.print_exc()
             return
 
     def create_view(self, view_name):
-
         self.window.set_layout({
             "cols": [0.0, 1.0],
             "rows": [0.0, 0.5, 1.0],
@@ -136,6 +135,7 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
         view.settings().set("gutter", True)
         view.settings().set("word_wrap", False)
         view.settings().set("scroll_past_end", False)
+        view.set_encoding('utf-8')
         view.set_name('{0}_{1}'.format(view_name, str(new_view_index)))
         view.set_read_only(True)
 
@@ -154,14 +154,12 @@ class ExecThread(threading.Thread):
 
     def run(self):
         try:
-
             CREATE_NO_WINDOW = 0x08000000  # hide cmd window
-            self.popen = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, creationflags=CREATE_NO_WINDOW)
+            self.popen = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stdin=(None if self.cmd[0] == 'sqlplus' else subprocess.PIPE), creationflags=CREATE_NO_WINDOW)
             check_thread = threading.Thread(target=self.check_view_proc, args=(self.view, self.popen, ))
             check_thread.start()
 
             stdout_lines = iter(self.popen.stdout.readline, b'')
-            print(stdout_lines)
             for stdout_line in stdout_lines:
                 ok = self.append_data('{0}\n'.format(stdout_line.decode('cp437').strip('\r\n')))
                 if not ok:
@@ -169,11 +167,13 @@ class ExecThread(threading.Thread):
             self.popen.stdout.close()
 
         except Exception as e:
-            # print_tb(e)
             traceback.print_exc()
         finally:
             flash_start_icon()
             os.remove(self.tmp_file_name)
+            if self.view.id() in VIEW_THREADS:
+                self.view.run_command('done_or_expired')
+                del VIEW_THREADS[self.view.id()]
 
     def append_data(self, data):
 
@@ -195,11 +195,8 @@ class ExecThread(threading.Thread):
 
     def check_view_proc(self, view, popen):
         while True:
-            rc = popen.poll()
-            if (not view.name()) or (not rc is None):
+            if not view.name():
                 popen.terminate()
-                if view.id() in VIEW_THREADS:
-                    del VIEW_THREADS[view.id()]
                 sys.exit(0)
             time.sleep(5)
 

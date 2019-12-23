@@ -1,0 +1,19 @@
+[
+    {
+        "caption": "JCSQL",
+        "id": "jcsql_context",
+        "children":
+        [
+            {
+                "caption": "Fetch all",
+                "id": "jcsql_fetch_all",
+                "command": "fetch_all"
+            },
+            // {
+            //     "caption": "Save to csv",
+            //     "id": "jcsql_save_to_csv",
+            //     "command": "save_to_csv"
+            // }
+        ]
+    }
+]

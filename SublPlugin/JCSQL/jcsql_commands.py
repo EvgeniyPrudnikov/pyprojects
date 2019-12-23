@@ -36,16 +36,13 @@ class ModifyConnectionCommand(sublime_plugin.WindowCommand):
 
 
 class RunCodeCommand(sublime_plugin.WindowCommand):
-
     def run(self):
         las_used_conn = conn_store.get_last_used_conn()
         self.window.run_command("run_code_in", {"conn": las_used_conn})
 
 
 class RunCodeInCommand(sublime_plugin.WindowCommand):
-
     def run(self, conn=None, qtype="query"):
-
         if conn:
             self.window.run_command("exec_query", {"conn": conn, "qtype": qtype})
         else:
@@ -63,6 +60,5 @@ class RunCodeInCommand(sublime_plugin.WindowCommand):
 
 
 class ExplainPlanCommand(sublime_plugin.WindowCommand):
-
     def run(self):
         self.window.run_command("run_code_in", {"qtype": 'explain'})

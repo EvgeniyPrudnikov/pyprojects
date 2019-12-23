@@ -20,7 +20,6 @@ class ConnectionStore(object):
 
     def __init__(self, pass_path):
         self._pass_path = pass_path
-
         if os.path.isfile(pass_path):
             with open(pass_path, 'r') as pass_file:
                 d = pass_file.read()
@@ -38,7 +37,6 @@ class ConnectionStore(object):
         self._last_used_connection = conn
 
     def add_connection(self):
-
         w = sublime.active_window()
         w.show_input_panel('Add New Connection: ', self._template, self._on_add_modify_conn, None, None)
 
@@ -84,7 +82,6 @@ class ConnectionStore(object):
         return list(self._connection_store.keys())
 
     def delete_connection(self):
-
         def _on_del(conn_name_idx):
             conn_name = conn_list[conn_name_idx]
             try:
