@@ -2,6 +2,7 @@ import json
 import os
 import sublime
 import sublime_plugin
+from collections import OrderedDict
 
 settings = sublime.load_settings('JCSQL.sublime-settings')
 
@@ -24,11 +25,11 @@ class ConnectionStore(object):
             with open(pass_path, 'r') as pass_file:
                 d = pass_file.read()
                 if len(d) > 0:
-                    self._connection_store = json.loads(d)
+                    self._connection_store = json.loads(d, object_pairs_hook=OrderedDict)
                 else:
-                    self._connection_store = {}
+                    self._connection_store = OrderedDict()
         else:
-            self._connection_store = {}
+            self._connection_store = OrderedDict()
 
     def get_last_used_conn(self):
         return self._last_used_connection
@@ -61,7 +62,7 @@ class ConnectionStore(object):
     def _on_add_modify_conn(self, conn_json):
         if len(conn_json) > 0:
             try:
-                j = json.loads(conn_json)
+                j = json.loads(conn_json, object_pairs_hook=OrderedDict)
             except Exception as e:
                 sublime.error_message('Incorrect Connection JSON. Please try again.')
         else:

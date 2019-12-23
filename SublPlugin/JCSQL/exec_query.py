@@ -89,7 +89,7 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
         if tool == 'sqlplus':
             cmd = [tool, '-L', conn['connection_string'], '@', tmp_file_name]
         elif tool == 'python':
-            fetch_num = settings.get('fetch_num') if fetch is None else fetch
+            fetch_num = settings.get('fetch_num') if fetch is None else str(fetch)
             cmd = [tool, settings.get("client"), env, conn['connection_string'], tmp_file_name, qtype, fetch_num]
 
         self.exec_thread = ExecThread(cmd, output_view, tmp_file_name)
