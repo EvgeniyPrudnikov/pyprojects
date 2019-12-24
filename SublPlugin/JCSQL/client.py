@@ -3,6 +3,7 @@ import sys
 import time
 from datetime import timedelta
 import threading
+import traceback
 from collections import deque
 try:
     import numpy as np
@@ -92,9 +93,8 @@ def main():
         with open(query_file_name, 'rb') as f:
             query = f.read().decode('utf-8')
 
-        PRINT_HEADER.append(query)
-
         db = connect_to_db(conn_str, env)
+        PRINT_HEADER.append(query)
         cur = db.cursor()
         start = time.time()
         cur.execute(query)
@@ -137,9 +137,13 @@ def main():
                 break
 
     except Exception as e:
-        e_msg = str(e) + '\n'
+        e_msg = '\n' + str(e) + '\n'
         print(*PRINT_HEADER, sep='\n', flush=True)
-        print(e_msg, flush=True)
+        print(e_msg)
+        cur.close()
+        db.close()
+        traceback.print_exc()
+        sys.stdout.flush()
         os._exit(1)
 
     sys.stdout.flush()

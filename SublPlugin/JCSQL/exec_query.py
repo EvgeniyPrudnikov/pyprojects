@@ -154,14 +154,14 @@ class ExecThread(threading.Thread):
 
     def run(self):
         try:
-            CREATE_NO_WINDOW = 0x08000000  # hide cmd window
+            CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0 # hide cmd window
             self.popen = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stdin=(None if self.cmd[0] == 'sqlplus' else subprocess.PIPE), creationflags=CREATE_NO_WINDOW)
             check_thread = threading.Thread(target=self.check_view_proc, args=(self.view, self.popen, ))
             check_thread.start()
 
             stdout_lines = iter(self.popen.stdout.readline, b'')
             for stdout_line in stdout_lines:
-                ok = self.append_data('{0}\n'.format(stdout_line.decode('cp437').strip('\r\n')))
+                ok = self.append_data('{0}\n'.format(stdout_line.decode('utf-8').strip('\r\n')))
                 if not ok:
                     break
             self.popen.stdout.close()
@@ -176,7 +176,6 @@ class ExecThread(threading.Thread):
                 del VIEW_THREADS[self.view.id()]
 
     def append_data(self, data):
-
         self.view.set_read_only(False)
         self.view.run_command('append', {'characters': data})
         self.view.set_read_only(True)
