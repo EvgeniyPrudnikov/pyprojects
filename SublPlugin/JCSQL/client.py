@@ -108,6 +108,7 @@ def main():
 
         if rows_cnt < 0:
             cur.close()
+            db.close()
             os._exit(0)
 
         print(PRINT_LOAD, flush=True)
