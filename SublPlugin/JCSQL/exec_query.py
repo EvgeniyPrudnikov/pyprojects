@@ -71,7 +71,7 @@ VIEW_THREADS = {}
 
 class ExecQueryCommand(sublime_plugin.WindowCommand):
     def run(self, view_id="", fetch=None, conn=None, qtype="query"):
-        if view_id != '':
+        if view_id:
             self.load_data(view_id, fetch)
         else:
             self.new_thread(conn, qtype)
@@ -136,7 +136,7 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
         view.settings().set("word_wrap", False)
         view.settings().set("scroll_past_end", False)
         view.set_encoding('utf-8')
-        view.set_name('{0}_{1}'.format(view_name, str(new_view_index)))
+        view.set_name('{0}_{1} - active'.format(view_name, new_view_index))
         view.set_read_only(True)
 
         self.window.focus_group(0)  # Focus in main group
@@ -154,16 +154,15 @@ class ExecThread(threading.Thread):
 
     def run(self):
         try:
-            CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0 # hide cmd window
+            CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0  # hide cmd window
             self.popen = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stdin=(None if self.cmd[0] == 'sqlplus' else subprocess.PIPE), creationflags=CREATE_NO_WINDOW)
             check_thread = threading.Thread(target=self.check_view_proc, args=(self.view, self.popen, ))
             check_thread.start()
 
             stdout_lines = iter(self.popen.stdout.readline, b'')
             for stdout_line in stdout_lines:
-                ok = self.append_data('{0}\n'.format(stdout_line.decode('utf-8').strip('\r\n')))
-                if not ok:
-                    break
+                self.append_data('{0}\n'.format(stdout_line.decode('utf-8').strip('\r\n')))
+
             self.popen.stdout.close()
 
         except Exception as e:
@@ -171,6 +170,8 @@ class ExecThread(threading.Thread):
         finally:
             flash_start_icon()
             os.remove(self.tmp_file_name)
+            upd_name = self.view.name().replace('- active', '- done')
+            self.view.set_name(upd_name)
             if self.view.id() in VIEW_THREADS:
                 self.view.run_command('done_or_expired')
                 del VIEW_THREADS[self.view.id()]
@@ -190,7 +191,6 @@ class ExecThread(threading.Thread):
                 pass
 
         self.view.run_command('move_to', {'to': 'eof'})
-        return True
 
     def check_view_proc(self, view, popen):
         while True:

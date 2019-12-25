@@ -95,6 +95,7 @@ def main():
 
         db = connect_to_db(conn_str, env)
         PRINT_HEADER.append(query)
+        PRINT_HEADER.append('')
         cur = db.cursor()
         start = time.time()
         cur.execute(query)
@@ -107,6 +108,7 @@ def main():
         print_all(output)
 
         if rows_cnt < 0:
+            print('Fetched all rows.', flush=True)
             cur.close()
             db.close()
             os._exit(0)
