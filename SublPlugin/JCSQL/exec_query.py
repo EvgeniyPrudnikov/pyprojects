@@ -154,6 +154,7 @@ class ExecThread(threading.Thread):
 
     def run(self):
         try:
+
             CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0  # hide cmd window
             self.popen = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stdin=(None if self.cmd[0] == 'sqlplus' else subprocess.PIPE), creationflags=CREATE_NO_WINDOW)
             check_thread = threading.Thread(target=self.check_view_proc, args=(self.view, self.popen, ))
@@ -161,7 +162,7 @@ class ExecThread(threading.Thread):
 
             stdout_lines = iter(self.popen.stdout.readline, b'')
             for stdout_line in stdout_lines:
-                self.append_data('{0}\n'.format(stdout_line.decode('utf-8').strip('\r\n')))
+                self.append_data('{0}\n'.format(stdout_line.decode('utf-8', errors='ignore').strip('\r\n')))
 
             self.popen.stdout.close()
 

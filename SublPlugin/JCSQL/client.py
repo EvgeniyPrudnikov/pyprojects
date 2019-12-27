@@ -45,7 +45,7 @@ def connect_to_db(conn_str, env):
     for _ in range(50):  # 50 attempts
         try:
             if env == 'oracle':
-                db = cx.connect(conn_str)
+                db = cx.connect(conn_str, encoding='utf-8')
             else:
                 db = pyodbc.connect(conn_str, autocommit=True, timeout=0)
             if db:
