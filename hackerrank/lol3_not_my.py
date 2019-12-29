@@ -1,4 +1,5 @@
 
+# https://www.hackerrank.com/challenges/the-minion-game/problem
 
 vowels = frozenset("AEIOU")
 

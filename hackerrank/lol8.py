@@ -1,3 +1,7 @@
+
+# somethin with friends
+
+
 def lol(g):
     d = dict()
 

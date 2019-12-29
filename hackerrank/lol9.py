@@ -1,3 +1,7 @@
+
+# averedge lenght of string
+
+
 def lol1(s):
     ss = s.split()
     ln = len(ss)

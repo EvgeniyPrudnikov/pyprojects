@@ -25,10 +25,6 @@ l = [
 
 for s in l:
     print(s, numDecodings(s), sep=' = ')
-    # res = [s[i: j] for i in range(len(s))  for j in range(i + 1, len(s) + 1) if len(s[i: j]) < 3 ]
-    # print(res)
-
-
 
 # 226226
 # 2 26 22 6
