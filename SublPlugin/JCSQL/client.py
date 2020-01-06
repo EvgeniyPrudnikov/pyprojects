@@ -59,9 +59,15 @@ def connect_to_db(conn_str, env):
 
 
 def fetch_data(cur, res, fetch_num, with_header=False):
+
+    if not cur.description:
+        res += [['done.']]
+        return -1
+
     if with_header:
         headers = tuple([i[0].lower() for i in cur.description])
         res.append(headers)
+
 
     if fetch_num == -1:
         res += cur.fetchall()
@@ -94,6 +100,10 @@ def main():
             query = f.read().decode('utf-8')
 
         db = connect_to_db(conn_str, env)
+
+        if env == 'impala' and fetch_num == -1:
+            pass
+
         PRINT_HEADER.append(query)
         PRINT_HEADER.append('')
         cur = db.cursor()
@@ -106,6 +116,7 @@ def main():
         rows_cnt = fetch_data(cur, output, fetch_num, with_header=True)
 
         print_all(output)
+
 
         if rows_cnt < 0:
             print('Fetched all rows.', flush=True)
@@ -140,7 +151,10 @@ def main():
                 break
 
     except Exception as e:
-        e_msg = '\n' + str(e) + '\n'
+        if len(e.args) == 1:
+            e_msg = '\n' + str(e) + '\n'
+        else:
+            e_msg =  '\n' + str(e.args[1]) + '\n'
         print(*PRINT_HEADER, sep='\n', flush=True)
         print(e_msg)
         cur.close()

@@ -183,7 +183,7 @@ class ExecThread(threading.Thread):
         self.view.set_read_only(True)
 
         errors_start_text = ['ORA-', 'SP2-', 'PL/SQL:', 'ERROR', 'PLS-']
-        odbc_err_text = '[Oracle][ODBC][Ora]'
+        odbc_err_text = '[Cloudera][ImpalaODBC]'
         if any(map(data.startswith, errors_start_text)) or odbc_err_text in data:
             self.view.sel().add(self.view.line(sublime.Region(self.view.size() - len(data), self.view.size())))
             try:
