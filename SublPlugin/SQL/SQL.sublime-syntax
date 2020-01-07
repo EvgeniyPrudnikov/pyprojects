@@ -47,13 +47,13 @@ contexts:
         (?xi)
 
                 # normal stuff, capture 1
-                 \b(bigint|bigserial|bit|boolean|box|bytea|cidr|circle|date|datetime|double\sprecision|inet|constant|int|integer|line|lseg|macaddr|money|ntext|oid|path|point|polygon|real|serial|smallint|sysdate|sysname|text)\b
+                 \b(bigint|double|bigserial|bit|boolean|box|bytea|cidr|circle|date|datetime|double\sprecision|inet|constant|int|integer|line|lseg|macaddr|money|ntext|oid|path|point|polygon|real|serial|smallint|sysdate|sysname|text)\b
 
                 # numeric suffix, capture 2 + 3i
                 |\b(bit\svarying|character\s(?:varying)?|tinyint|var\schar|float|interval)\((\d+)\)
 
                 # optional numeric suffix, capture 4 + 5i
-                |\b(char|number|nvarchar|varbinary|varchar|varchar2|string|byte|SYS_REFCURSOR\d?)\b(?:\((\d+)\))?
+                |\b(char|number|double|nvarchar|varbinary|varchar|varchar2|string|byte|SYS_REFCURSOR\d?)\b(?:\((\d+)\))?
 
                 # special case, capture 6 + 7i + 8i
                 |\b(numeric|decimal)\b(?:\((\d+),(\d+)\))?
@@ -87,8 +87,11 @@ contexts:
       scope: constant.numeric.sql
     - match: (?i:\b(true|false)\b)
       scope: keyword.other.sql
-    - match: (?i:\b(select(\s+(distinct|top))?|(insert\s+(ignore\s+)?(into|overwrite)(\s+table\s+)?)?|update|merge|distinct|analyze table|LATERAL VIEW explode|purge|disable|novalidate|rename column|rename|execute|exec|describe formatted|to|is|each|row|connect by|level|exists|deferrable|immediate|pragma|exception_init|unique|initially|deferred|using|index|enable|validate|cascade|constraints|add|rollup|minus|delete|from|set|where|group\s+by\s*(rollup|cube)?|or|like|between|and|with|case|when|if|elsif|then|loop|exit|open|close|subpartition|partition by|partition|execute immediate|fetch|reverse|bulk collect|while|into|for|else|declare|exception|end|union(\s+all)?|having|order\s+by|limit|(inner|cross)\s+join|join|straight_join|(left|right|full)(\s+outer)?\s+join|natural(\s+(left|right|full)(\s+outer)?)?\s+join)\b)
-      scope: keyword.other.sql
+    - match: (?i:\b(select(\s+(distinct|top))?|insert\s+([a-z0-9\/\*\-\+\s\(\)\_]+)?\s+into|insert\s+(ignore\s+)?(into|overwrite)(\s+table\s+)?|update|merge|distinct|analyze table|LATERAL VIEW explode|purge|disable|novalidate|rename column|rename|execute|exec|refresh|describe formatted|to|is|each|row|connect by|level|exists|deferrable|immediate|pragma|exception_init|unique|initially|deferred|using|index|enable|validate|cascade|constraints|add|rollup|minus|delete|from|set|where|group\s+by\s*(rollup|cube)?|or|like|between|and|with|case|when|if|elsif|then|loop|exit|open|close|subpartition|partition by|partition|execute immediate|fetch|reverse|bulk collect|while|into|for|else|declare|exception|end|union(\s+all)?|having|order\s+by|limit|(inner|cross)\s+join|join|straight_join|(left|right|full)(\s+outer)?\s+join|natural(\s+(left|right|full)(\s+outer)?)?\s+join)\b)
+      captures:
+        1: keyword.other.sql
+        4: comment.block.c
+      # scope: keyword.other.sql
     - match: \b\s*((HR|LOL)(\.)\w+(\.?)(\w+)?)
       captures:
         1: entity.name.function.sql
