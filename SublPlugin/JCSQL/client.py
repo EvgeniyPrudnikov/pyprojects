@@ -25,15 +25,29 @@ def print_all(output):
 
 
 def pretty_print_result(output):
+
+    def check_line_end(val):
+        v = str(val)
+        if '\n' in v:
+            return max(map(len, v.split('\n')))
+        else:
+            return len(v)
+
     l_output = np.array(output)
-    to_str = np.vectorize(str)
-    get_length = np.vectorize(len)
-    max_col_length = np.amax(get_length(to_str(l_output)), axis=0)
+    to_str_repl_len = np.vectorize(check_line_end)
+    max_col_length = np.amax(to_str_repl_len(l_output), axis=0)
+
+    def proc_line_end(val, index):
+        l = str(val).split('\n')
+        mcl = np.amax(to_str_repl_len(l), axis=0)
+        sm = np.sum(max_col_length[:index]) + 3*index + 2
+        res = [(' '*(sm-2) + '. ' if i > 0 else '') + str(value).replace('None', 'NULL') + ' ' * (max_col_length[index] - len(value)) + (' .' if i != len(l)-1 else '') for i, value in enumerate(l)]
+        return '\n'.join(res)
 
     # print result
     print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
     for row_index, row in enumerate(l_output):
-        print('|' + ''.join([' ' + str(value).replace('None', 'NULL') + ' ' * (max_col_length[index] - len(str(value))) + ' |' for index, value in enumerate(row)]))
+        print('|' + ''.join([' ' + ((str(value).replace('None', 'NULL') + ' ' * (max_col_length[index] - len(str(value)))) if '\n' not in str(value) else proc_line_end(value, index)) + ' |' for index, value in enumerate(row)]))
         if row_index == 0 or row_index == len(l_output) - 1:
             print('+' + ''.join(['-' * x + '--+' for x in max_col_length]))
 
