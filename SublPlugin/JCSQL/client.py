@@ -180,7 +180,7 @@ def main():
         if len(e.args) == 1:
             e_msg = '\n{0}\n'.format(e)
         else:
-            e_msg =  '\n{0}\n'.formate(e.args[1])
+            e_msg =  '\n{0}\n'.format(e.args[1])
         print(*PRINT_HEADER, sep='\n', flush=True)
         print(e_msg)
         cur.close()
