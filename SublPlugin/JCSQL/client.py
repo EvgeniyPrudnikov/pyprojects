@@ -5,12 +5,14 @@ from datetime import timedelta
 import threading
 import traceback
 from collections import deque
+import csv
 try:
     import numpy as np
     import pyodbc
     import cx_Oracle as cx
 except Exception as e:
     print(e)
+
 
 PRINT_HEADER = []
 PRINT_FOOTER = []
@@ -24,8 +26,13 @@ def print_all(output):
     sys.stdout.flush()
 
 
-def pretty_print_result(output):
+def cvs_print_result(output):
+    writer = csv.writer(sys.stdout, dialect='excel', delimiter=',', lineterminator='\n', quoting=csv.QUOTE_ALL, escapechar='\\')
+    writer.writerows(output)
+    sys.stdout.flush()
 
+
+def pretty_print_result(output):
     def check_line_end(val):
         v = str(val)
         if '\n' in v:
@@ -72,27 +79,29 @@ def connect_to_db(conn_str, env):
     return db
 
 
-def fetch_data(cur, res, fetch_num, with_header=False):
+def fetch_data(cur, res, fetch_num, is_fetched_all_rows, with_header=False):
+    if is_fetched_all_rows:
+        return True
 
     if not cur.description:
         res += [['done.']]
-        return -1
+        return True
 
     if with_header:
         headers = tuple([i[0].lower() for i in cur.description])
         res.append(headers)
 
-
     if fetch_num == -1:
         res += cur.fetchall()
-        return -1
+        return True
 
     result = cur.fetchmany(fetch_num)
     res += result
 
     if len(result) == 0 or len(result) <= fetch_num - 1:
-        return -1
-    return len(result)
+        return True
+
+    return False
 
 
 def read_input(msg_q):
@@ -111,35 +120,35 @@ def main():
 
     try:
         with open(query_file_name, 'rb') as f:
-            query = f.read().decode('utf-8')
+            query = f.read().decode('utf-8').replace('\r\n','\n')
 
         db = connect_to_db(conn_str, env)
-
-        if env == 'impala' and fetch_num == -1:
-            pass
-
-        PRINT_HEADER.append(query)
-        PRINT_HEADER.append('')
         cur = db.cursor()
-        start = time.time()
-        cur.execute(query)
-        end = time.time()
-        PRINT_FOOTER.append('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
-
         output = []
-        rows_cnt = fetch_data(cur, output, fetch_num, with_header=True)
+        queries = list(filter(None, query.split(';\n')))
+        len_q = len(queries)
+        for i, query in enumerate(queries):
+            is_fetched_all_rows = False
+            PRINT_HEADER.append(query + '\n')
+            start = time.time()
+            cur.execute(query)
+            end = time.time()
+            PRINT_FOOTER.append('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
+            if len_q > 1:
+                output = []
 
-        print_all(output)
+            is_fetched_all_rows = fetch_data(cur, output, fetch_num, is_fetched_all_rows, with_header=True)
 
+            print_all(output)
+            if i < len_q - 1:
+                PRINT_HEADER.pop()
+                PRINT_FOOTER.pop()
 
-        if rows_cnt < 0:
+        if not is_fetched_all_rows:
+            print(PRINT_LOAD, flush=True)
+            PRINT_FOOTER.append(PRINT_LOAD)
+        else:
             print('Fetched all rows.', flush=True)
-            cur.close()
-            db.close()
-            os._exit(0)
-
-        print(PRINT_LOAD, flush=True)
-        PRINT_FOOTER.append(PRINT_LOAD)
 
         # default timeout 30 sec
         timeout = time.time() + 30
@@ -148,7 +157,6 @@ def main():
         input_t = threading.Thread(target=read_input, args=(input_msgs,))
         input_t.daemon = True
         input_t.start()
-
         while time.time() < timeout:
             if len(input_msgs) == 0:
                 time.sleep(0.2)
@@ -156,19 +164,23 @@ def main():
 
             cmd = input_msgs.popleft().split('==')
             if cmd[0] == 'load':
-                rows_cnt = fetch_data(cur, output, int(cmd[1]))
+                if not is_fetched_all_rows:
+                    is_fetched_all_rows = fetch_data(cur, output, int(cmd[1]), is_fetched_all_rows)
                 print_all(output)
-                if rows_cnt < 0:
-                    break
                 timeout += 10
+            elif cmd[0] == 'csv':
+                if not is_fetched_all_rows:
+                    is_fetched_all_rows = fetch_data(cur, output, int(cmd[1]), is_fetched_all_rows)
+                cvs_print_result(output)
+                # break
             else:
                 break
 
     except Exception as e:
         if len(e.args) == 1:
-            e_msg = '\n' + str(e) + '\n'
+            e_msg = '\n{0}\n'.format(e)
         else:
-            e_msg =  '\n' + str(e.args[1]) + '\n'
+            e_msg =  '\n{0}\n'.formate(e.args[1])
         print(*PRINT_HEADER, sep='\n', flush=True)
         print(e_msg)
         cur.close()
