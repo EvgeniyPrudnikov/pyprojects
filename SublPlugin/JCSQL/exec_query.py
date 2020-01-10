@@ -72,7 +72,10 @@ VIEW_THREADS = {}
 class ExecQueryCommand(sublime_plugin.WindowCommand):
     def run(self, view_id="", fetch=None, conn=None, qtype="query"):
         if view_id:
-            self.load_data(view_id, fetch)
+            if qtype == 'csv':
+                self.load_csv(view_id)
+            else:
+                self.load_data(view_id, fetch)
         else:
             self.new_thread(conn, qtype)
 
@@ -97,6 +100,26 @@ class ExecQueryCommand(sublime_plugin.WindowCommand):
         self.exec_thread.start()
 
         VIEW_THREADS[output_view.id()] = self.exec_thread
+
+
+    def load_csv(self, vid):
+        try:
+            if vid in VIEW_THREADS:
+                view_thread = VIEW_THREADS[vid]
+            else:
+                return
+            view = view_thread.view
+            popen = view_thread.popen
+
+            view.set_read_only(False)
+            view.run_command('erase')
+
+            popen.stdin.write('csv==-1\n'.encode('utf-8'))
+            popen.stdin.flush()
+        except Exception as e:
+            traceback.print_exc()
+            return
+
 
     def load_data(self, vid, fetch):
         try:
@@ -208,7 +231,7 @@ class LoadDataEvent(sublime_plugin.ViewEventListener):
     def on_selection_modified_async(self):
         if self.view.window().active_group() != 1:
             return
-        sublime.set_timeout(self.check, 500)
+        sublime.set_timeout(self.check, 435)
 
     def check(self):
         if self.view.id() in VIEW_THREADS:

@@ -4,13 +4,10 @@ import os
 import csv
 import traceback
 from datetime import datetime
-import time
-import string
 from decimal import Decimal
 try:
     import wx
     import wx.dataview
-    import numpy as np
 except:
     pass
 
@@ -85,7 +82,7 @@ def prepare_query_file(view, env, qtype):
     elif env == 'impala':
         tool, cl_query, fetch = prepare_impala(sel_text, qtype, is_query_dml)
 
-    tmp_file_name = 'tmp_{tool}_dt_{dt}.sql'.format(tool=tool, dt=time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))
+    tmp_file_name = 'tmp_{tool}_dt_{dt}.sql'.format(tool=tool, dt=datetime.now().strftime("%Y_%m_%d_%H_%M_%S.%f"))
     tmp_file_path = os.path.join(os.path.dirname(__file__), 'tmp', tmp_file_name)
 
     try:
