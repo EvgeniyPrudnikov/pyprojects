@@ -15,11 +15,17 @@ EXCLUDE_DIR_NAMES = {'dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'sy
                      'hive_metastore', 'kafka', 'reports', 'triggers', 'additional_tools'}
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
-schema_re = re.compile('use@([0-9_a-zA-Z]*);?', re.DOTALL | re.MULTILINE)
-trg_re = re.compile('@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
-trg_view_re = re.compile('create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
-src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
-src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
+FLAGS = re.DOTALL | re.MULTILINE
+
+SQL_REG = {
+    'schema_re': r'use@([0-9_a-zA-Z]*);?',
+    'trg_re': r'@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]',
+    'trg_view_re': r'create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@',
+    'src_re': r'@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@',
+    'src_with_catch': r'@?(with|,)@([_a-zA-Z0-9]+?)@as@\('
+}
+
+SQL_REG = {k: re.compile(v, FLAGS) for k, v in SQL_REG.items()}
 
 
 trg_obj_props = namedtuple('trg_obj_props', ['schemas', 'sources'])
@@ -106,18 +112,18 @@ def process_file(file_path, schema_name):
 
         if cl_data.startswith('use'):
             try:
-                res = schema_re.findall(cl_data).pop()
+                res = SQL_REG['schema_re'].findall(cl_data).pop()
                 if len(res) > 0:
                     schema_name = res
                 continue
             except IndexError:
                 continue
 
-        l_trg_objects = trg_re.findall(cl_data)
+        l_trg_objects = SQL_REG['trg_re'].findall(cl_data)
         if l_trg_objects:
             trg_object = l_trg_objects[0][2].strip().lower()
         else:
-            l_trg_objects = trg_view_re.findall(cl_data)
+            l_trg_objects = SQL_REG['trg_view_re'].findall(cl_data)
             if l_trg_objects:
                 trg_object = l_trg_objects[0][1].strip().lower()
             else:
@@ -131,11 +137,11 @@ def process_file(file_path, schema_name):
 
         trg_object = merge_equal_tables(trg_object)
 
-        if len(trg_object) == 0:
+        if not trg_object:
             continue
 
-        src_objects = src_re.findall(cl_data)
-        with_objects = tuple([item[1].strip().lower() for item in src_with_catch.findall(cl_data)])
+        src_objects = SQL_REG['src_re'].findall(cl_data)
+        with_objects = tuple([item[1].strip().lower() for item in SQL_REG['src_with_catch'].findall(cl_data)])
 
         s_sources = set()
         for src in src_objects:
@@ -152,8 +158,6 @@ def process_file(file_path, schema_name):
 
 def add_to_index(index, ind_part):
     if not ind_part:
-        return
-    if len(ind_part) == 0:
         return
     else:
         for k in ind_part:
@@ -202,7 +206,7 @@ def find_source_path(idx, search_object, depth=999, x=-1, res=[], seen=[]):  # ,
     except KeyError:
         return
 
-    if len(src_objs) == 0 or abs(x) > depth:
+    if not src_objs or abs(x) > depth:
         return
 
     for o in src_objs:
@@ -228,7 +232,7 @@ def find_target_path(idx, search_object, depth=999, x=1, res=[], seen=[]):  # , 
         if k != 'METADATA' and search_object in v.sources:
             trgs.append(k)
 
-    if len(trgs) == 0 or abs(x) > depth:
+    if not trgs or abs(x) > depth:
         return
 
     for t in trgs:
@@ -306,8 +310,8 @@ def main():
 
         print('INDEX:{0}\n'.format(INDEX['METADATA']))
 
-        # with open('idx', 'w') as f:
-        #     f.write(str(INDEX))
+        with open('idx', 'w') as f:
+            f.write(str(INDEX))
 
         result_source = set()
         result_target = set()
