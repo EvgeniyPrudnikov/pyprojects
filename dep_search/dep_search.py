@@ -1,15 +1,12 @@
-
-import matplotlib as mpl
 import os
+import argparse
 import pickle
 from collections import namedtuple
 import re
 import networkx as nx
 import matplotlib.pyplot as plt
-import sys
 import time
 from datetime import timedelta
-import numpy as np
 
 INDEX = {}
 EXCLUDE_DIR_NAMES = ['dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'synonym',
@@ -18,14 +15,10 @@ EXCLUDE_DIR_NAMES = ['dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'sy
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 schema_re = re.compile('use@([0-9_a-zA-Z]*);?', re.DOTALL | re.MULTILINE)
-trg_re = re.compile(
-    '@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
-trg_view_re = re.compile(
-    'create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
-src_re = re.compile(
-    '@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
-src_with_catch = re.compile(
-    '@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
+trg_re = re.compile('@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]', re.DOTALL | re.MULTILINE)
+trg_view_re = re.compile('create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
+src_re = re.compile('@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@', re.DOTALL | re.MULTILINE)
+src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.MULTILINE)
 
 
 trg_obj_props = namedtuple('trg_obj_props', ['schemas', 'sources'])
@@ -151,7 +144,7 @@ def process_file(file_path, schema_name):
 
 
 def add_to_index(index, ind_part):
-    if ind_part is None:
+    if not ind_part:
         return
     if len(ind_part) == 0:
         return
@@ -160,8 +153,7 @@ def add_to_index(index, ind_part):
             if k not in index:
                 index[k] = ind_part[k]
             else:
-                res_val = trg_obj_props(
-                    sources=index[k].sources | ind_part[k].sources, schemas=index[k].schemas | ind_part[k].schemas)  # merge sets
+                res_val = trg_obj_props(sources=index[k].sources | ind_part[k].sources, schemas=index[k].schemas | ind_part[k].schemas)  # merge sets
                 index[k] = res_val
     del ind_part
 
@@ -180,8 +172,8 @@ def create_index(root_dir_path, exclude_dir_names=[]):
                 cnt += 1
         print('{0} - {1} files processed.'.format(path, cnt))
 
-    INDEX['METADATA'] = {'objects': len(INDEX), 'last_update_date': time.time()}
-
+    INDEX['METADATA'] = {'objects': len(INDEX), 'last_update_date': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}
+    print(INDEX['METADATA'])
     with open('index.pkl', 'wb') as pkl:
         pickle.dump(INDEX, pkl)
 
@@ -189,26 +181,13 @@ def create_index(root_dir_path, exclude_dir_names=[]):
     print('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
 
 
-root_dir_path = r''
-
-# create_index(root_dir_path, EXCLUDE_DIR_NAMES)
-# exit(0)
-
-with open('index.pkl', 'rb') as pkl:
-    INDEX = pickle.load(pkl)
-
-with open('idx', 'w') as f:
-    f.write(str(INDEX))
-
-print(INDEX['METADATA'])
-
-# exit(0)
-
-
-def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={}):
+def find_source_path(idx, search_object, depth=999, x=-1, res=[], seen=[]):  # , pos={}):
+    '''
+    find and return objects who is a source for the search_object (like obj1 , obj2, obj3 --> search_object)
+    '''
 
     try:
-        src_objs = sorted(list(ind[search_object].sources))
+        src_objs = sorted(list(idx[search_object].sources))
     except KeyError:
         return
 
@@ -219,20 +198,22 @@ def find_source_path(ind, search_object, depth=999, x=-1, res=[], seen=[], pos={
         if o not in seen:
             res.append((o, search_object,))
             seen.append(o)
-            pos[o] = (x, 0,)
-            find_source_path(ind, o, depth, x-1, res, seen, pos)
+            # pos[o] = (x, 0,)
+            find_source_path(idx, o, depth, x - 1, res, seen)
         else:
             res.append((o, search_object,))
-            pos[o] = (x, 0,)
+            # pos[o] = (x, 0,)
 
-    return res, pos
+    return res  # , pos
 
 
-def find_target_path(ind, search_object, depth=999, x=1, res=[], seen=[], pos={}):
-
+def find_target_path(idx, search_object, depth=999, x=1, res=[], seen=[]):  # , pos={}):
+    '''
+    find and return objects who is a target for the search_object (like search_object --> obj1 , obj2, obj3)
+    '''
     trgs = []
 
-    for k, v in ind.items():
+    for k, v in idx.items():
         if k != 'METADATA' and search_object in v.sources:
             trgs.append(k)
 
@@ -244,22 +225,12 @@ def find_target_path(ind, search_object, depth=999, x=1, res=[], seen=[], pos={}
             # print(' ' * lvl * 5 + str(lvl) + ' ' + t)
             res.append((search_object, t,))
             seen.append(t)
-            pos[t] = (x, 0,)
-            find_target_path(ind, t, depth, x + 1, res, seen, pos)
+            # pos[t] = (x, 0,)
+            find_target_path(idx, t, depth, x + 1, res, seen)
         else:
             res.append((search_object, t,))
-            pos[t] = (x, 0,)
-    return res, pos
-
-
-# sys.setrecursionlimit(100)
-
-res_target, pos_target = find_target_path(INDEX, '',depth= 1)
-# res_target =[], pos_target = {}
-# res_source, pos_source = find_source_path(INDEX, '')
-
-# print(res_source)
-# exit(0)
+            # pos[t] = (x, 0,)
+    return res  # , pos
 
 
 def position_y(pos):
@@ -275,48 +246,73 @@ def position_y(pos):
         ln2[j] = [i + 1 for i in range(ln[j])]
 
     for j in ln:
-        ln[j] = ln[j]//2
+        ln[j] = ln[j] // 2
 
     for p in pos.keys():
         pnt = pos[p]
         pos[p] = (pnt[0], ln2[pnt[0]].pop() - ln[pnt[0]])
 
 
-# print(pos_source)
-# position_y(pos_source)
-position_y(pos_target)
+def main():
+
+    global EXCLUDE_DIR_NAMES
+
+    parser = argparse.ArgumentParser(description='Dependencies search')
+    parser.add_argument('-ci', "--create_index", metavar='root_dir_path', action="store", help="create or update index from localFS (svn trunc)")
+    parser.add_argument('-e', "--exclude_dir_names", metavar='dir_name', action="store", nargs='+', required=False, help='exclude dirs')
+    parser.add_argument('-f', "--find", metavar='search_object', nargs='+', help="find dependencies")
+    parser.add_argument('-d', "--depth", action="store", nargs=1, type=int, help="depth of search in both directions", default=999)
+
+    args = parser.parse_args()
+
+    if not args.create_index and not args.find:
+        parser.print_help()
+        exit(0)
+
+    search_depth = args.depth
+
+    if args.exclude_dir_names:
+        EXCLUDE_DIR_NAMES = args.exclude_dir_names
+        print(EXCLUDE_DIR_NAMES)
+
+    if args.create_index:
+        root_dir_path = args.create_index.strip("'").strip('"')
+        if os.path.isdir(root_dir_path):
+            print('Creating index ...')
+            create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+        else:
+            print('Path "{0}" is not a dir'.format(root_dir_path))
+
+    if args.find:
+        search_objects = args.find
+
+        # read index
+        with open('index.pkl', 'rb') as pkl:
+            INDEX = pickle.load(pkl)
+
+        with open('idx', 'w') as f:
+            f.write(str(INDEX))
+
+        result_source = set()
+        result_target = set()
+
+        for so in search_objects:
+            res_source = find_source_path(INDEX, so, depth=search_depth)
+            if res_source:
+                result_source = result_source | set(res_source)
+
+            res_target = find_target_path(INDEX, so, depth=search_depth)
+            if res_target:
+                result_target = result_target | set(res_target)
+
+        result = result_source | result_target
+
+        print(result)
+
+        with open('res', 'w+') as wf:
+            for i, j in result:
+                wf.write('{0},{1}\n'.format(i, j))
 
 
-# pos_source[''] = (0, y1)
-# pos_source[''] = (0, 0)
-# pos_source[''] = (0, 0)
-pos_target[''] = (0, 0)
-
-# pos_target = {}
-# pos = {**pos_source, **pos_target}
-# pos = pos_source
-pos = pos_target
-# print('LEN=', len(res_source) + len(res_target))
-
-# print(len(pos_source))
-print(len(pos_target))
-# exit(1)
-
-g = nx.DiGraph(directed=True)
-
-# g.add_edges_from(res_source)
-
-# for x in res_source:
-#     print(x[0], x[1], sep=' -> ')
-
-g.add_edges_from(res_target)
-
-
-# nx.draw_networkx_nodes(g, graph_pos, node_size=1000, node_color='blue', alpha=0.3)
-# nx.draw_networkx_edges(g, graph_pos)
-# nx.draw_networkx_labels(g, graph_pos, font_size=10, font_family='sans-serif')
-
-
-nx.draw(g, pos, with_labels=True, arrows=True, alpha=0.5, font_size=10, node_shape='o', node_size=100)
-plt.draw()
-plt.show()
+if __name__ == '__main__':
+    main()
