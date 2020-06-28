@@ -180,12 +180,16 @@ def create_index(root_dir_path, exclude_dir_names=[]):
         print('{0} - {1} files processed.'.format(path, cnt))
 
     INDEX['METADATA'] = {'objects': len(INDEX), 'last_update_date': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}
+
     print(INDEX['METADATA'])
+
     with open('index.pkl', 'wb') as pkl:
         pickle.dump(INDEX, pkl)
 
     end = time.time()
     print('\nElapsed {0} s\n'.format(str(timedelta(seconds=end - start))))
+
+    return INDEX
 
 
 def find_source_path(idx, search_object, depth=999, x=-1, res=[], seen=[]):  # , pos={}):
@@ -263,6 +267,7 @@ def position_y(pos):
 def main():
 
     global EXCLUDE_DIR_NAMES
+    global INDEX
 
     parser = argparse.ArgumentParser(description='Dependencies search')
     parser.add_argument('-ci', "--create_index", metavar='root_dir_path', action="store", help="create or update index from localFS (svn trunc)")
@@ -287,15 +292,18 @@ def main():
         root_dir_path = args.create_index.strip("'").strip('"')
         if os.path.isdir(root_dir_path):
             print('Creating index ...')
-            create_index(root_dir_path, EXCLUDE_DIR_NAMES)
+            INDEX = create_index(root_dir_path, EXCLUDE_DIR_NAMES)
         else:
             print('Path "{0}" is not a dir'.format(root_dir_path))
 
     if args.find:
         search_objects = args.find
 
-        with open('index.pkl', 'rb') as pkl:
-            INDEX = pickle.load(pkl)
+        if not INDEX:
+            with open('index.pkl', 'rb') as pkl:
+                INDEX = pickle.load(pkl)
+
+        print('INDEX:{0}\n'.format(INDEX['METADATA']))
 
         # with open('idx', 'w') as f:
         #     f.write(str(INDEX))
@@ -314,7 +322,7 @@ def main():
 
         result = result_source | result_target
 
-        # print(result)
+        print(result)
         print('Done.')
 
         result_to_csv(result)
