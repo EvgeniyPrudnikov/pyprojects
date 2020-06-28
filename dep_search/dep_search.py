@@ -6,6 +6,7 @@ import re
 import networkx as nx
 import matplotlib.pyplot as plt
 import time
+import csv
 from datetime import timedelta
 
 INDEX = {}
@@ -22,6 +23,12 @@ src_with_catch = re.compile('@?(with|,)@([_a-zA-Z0-9]+?)@as@\(', re.DOTALL | re.
 
 
 trg_obj_props = namedtuple('trg_obj_props', ['schemas', 'sources'])
+
+
+def result_to_csv(output, file_name='result.csv'):
+    with open(file_name, 'w+') as f:
+        writer = csv.writer(f, dialect='excel', delimiter=',', lineterminator='\n', escapechar='\\')
+        writer.writerows(output)
 
 
 def clear_data(text):
@@ -261,7 +268,7 @@ def main():
     parser.add_argument('-ci', "--create_index", metavar='root_dir_path', action="store", help="create or update index from localFS (svn trunc)")
     parser.add_argument('-e', "--exclude_dir_names", metavar='dir_name', action="store", nargs='+', required=False, help='exclude dirs')
     parser.add_argument('-f', "--find", metavar='search_object', nargs='+', help="find dependencies")
-    parser.add_argument('-d', "--depth", action="store", nargs=1, type=int, help="depth of search in both directions", default=999)
+    parser.add_argument('-d', "--depth", action="store", type=int, help="depth of search in both directions", default=999)
 
     args = parser.parse_args()
 
@@ -273,6 +280,7 @@ def main():
 
     if args.exclude_dir_names:
         EXCLUDE_DIR_NAMES = args.exclude_dir_names
+        print('EXCLUDE_DIR_NAMES:\n')
         print(EXCLUDE_DIR_NAMES)
 
     if args.create_index:
@@ -286,12 +294,11 @@ def main():
     if args.find:
         search_objects = args.find
 
-        # read index
         with open('index.pkl', 'rb') as pkl:
             INDEX = pickle.load(pkl)
 
-        with open('idx', 'w') as f:
-            f.write(str(INDEX))
+        # with open('idx', 'w') as f:
+        #     f.write(str(INDEX))
 
         result_source = set()
         result_target = set()
@@ -307,11 +314,10 @@ def main():
 
         result = result_source | result_target
 
-        print(result)
+        # print(result)
+        print('Done.')
 
-        with open('res', 'w+') as wf:
-            for i, j in result:
-                wf.write('{0},{1}\n'.format(i, j))
+        result_to_csv(result)
 
 
 if __name__ == '__main__':
