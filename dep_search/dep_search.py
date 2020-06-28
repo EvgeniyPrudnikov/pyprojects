@@ -10,9 +10,9 @@ import csv
 from datetime import timedelta
 
 INDEX = {}
-EXCLUDE_DIR_NAMES = ['dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'synonym',
+EXCLUDE_DIR_NAMES = {'dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'synonym',
                      'types', 'application', 'queries', 'scripts', 'json', 'dev_kiev', 'dev_kiev_pr', 'deploy',
-                     'hive_metastore', 'kafka', 'reports', 'scripts', 'triggers', 'additional_tools']
+                     'hive_metastore', 'kafka', 'reports', 'triggers', 'additional_tools'}
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 schema_re = re.compile('use@([0-9_a-zA-Z]*);?', re.DOTALL | re.MULTILINE)
@@ -278,13 +278,14 @@ def main():
     args = parser.parse_args()
 
     if not args.create_index and not args.find:
+        print('Nothing to do...')
         parser.print_help()
         exit(0)
 
     search_depth = args.depth
 
     if args.exclude_dir_names:
-        EXCLUDE_DIR_NAMES = args.exclude_dir_names
+        EXCLUDE_DIR_NAMES = set(args.exclude_dir_names)
         print('EXCLUDE_DIR_NAMES:\n')
         print(EXCLUDE_DIR_NAMES)
 
