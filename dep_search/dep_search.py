@@ -19,7 +19,7 @@ FLAGS = re.DOTALL | re.MULTILINE
 
 SQL_REG = {
     'schema_re': r'use@([0-9_a-zA-Z]*);?',
-    'trg_re': r'@?insert@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]',
+    'trg_re': r'@?(insert|merge)@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]',
     'trg_view_re': r'create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@',
     'src_re': r'@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@',
     'src_with_catch': r'@?(with|,)@([_a-zA-Z0-9]+?)@as@\('
@@ -121,7 +121,7 @@ def process_file(file_path, schema_name):
 
         l_trg_objects = SQL_REG['trg_re'].findall(cl_data)
         if l_trg_objects:
-            trg_object = l_trg_objects[0][2].strip().lower()
+            trg_object = l_trg_objects[0][3].strip().lower()
         else:
             l_trg_objects = SQL_REG['trg_view_re'].findall(cl_data)
             if l_trg_objects:
