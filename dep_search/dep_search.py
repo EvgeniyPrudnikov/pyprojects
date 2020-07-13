@@ -3,16 +3,20 @@ import argparse
 import pickle
 from collections import namedtuple
 import re
-import networkx as nx
+import traceback
+from igraph import Graph
 import matplotlib.pyplot as plt
+import networkx as nx
 import time
 import csv
 from datetime import timedelta
 
 INDEX = {}
+INDEX2 = {}
+
 EXCLUDE_DIR_NAMES = {'dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'synonym',
                      'types', 'application', 'queries', 'scripts', 'json', 'dev_kiev', 'dev_kiev_pr', 'deploy',
-                     'hive_metastore', 'kafka', 'reports', 'triggers', 'additional_tools'}
+                     'hive_metastore', 'kafka', 'reports', 'triggers', 'additional_tools', 'oemm'}
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 FLAGS = re.DOTALL | re.MULTILINE
@@ -68,8 +72,10 @@ def clear_data(text):
             cl_data.append(line)
     return '\n'.join(cl_data) + '@'
 
-
+# TODO merge tables by [3:] symbols
 # [DWH specific]
+
+
 def merge_equal_tables(t_name):
     equal_prefix = ['c_', 'd_', 'ld_']
     if any(map(t_name.startswith, equal_prefix)):
@@ -196,7 +202,7 @@ def create_index(root_dir_path, exclude_dir_names=[]):
     return INDEX
 
 
-def find_source_path(idx, search_object, depth=999, x=-1, res=[], seen=[]):  # , pos={}):
+def find_source_path(idx, search_object, exclude_source, depth=999, x=-1, res=[], seen=[]):
     '''
     find and return objects who is a source for the search_object (like obj1 , obj2, obj3 --> search_object)
     '''
@@ -204,28 +210,29 @@ def find_source_path(idx, search_object, depth=999, x=-1, res=[], seen=[]):  # ,
     try:
         src_objs = sorted(list(idx[search_object].sources))
     except KeyError:
+        res.append(('NULL', search_object,))
         return
 
-    if not src_objs or abs(x) > depth:
+    if not src_objs or abs(x) > depth or search_object in exclude_source:
+        res.append(('NULL', search_object,))
         return
 
     for o in src_objs:
         if o not in seen:
             res.append((o, search_object,))
             seen.append(o)
-            # pos[o] = (x, 0,)
-            find_source_path(idx, o, depth, x - 1, res, seen)
+            find_source_path(idx, o, exclude_source, depth, x - 1, res, seen)
         else:
             res.append((o, search_object,))
-            # pos[o] = (x, 0,)
 
-    return res  # , pos
+    return res
 
 
-def find_target_path(idx, search_object, depth=999, x=1, res=[], seen=[]):  # , pos={}):
+def find_target_path(idx, search_object, depth=999, x=1, res=[], seen=[]):
     '''
     find and return objects who is a target for the search_object (like search_object --> obj1 , obj2, obj3)
     '''
+
     trgs = []
 
     for k, v in idx.items():
@@ -237,35 +244,91 @@ def find_target_path(idx, search_object, depth=999, x=1, res=[], seen=[]):  # , 
 
     for t in trgs:
         if t not in seen:
-            # print(' ' * lvl * 5 + str(lvl) + ' ' + t)
             res.append((search_object, t,))
             seen.append(t)
-            # pos[t] = (x, 0,)
             find_target_path(idx, t, depth, x + 1, res, seen)
         else:
             res.append((search_object, t,))
-            # pos[t] = (x, 0,)
-    return res  # , pos
+    return res
 
 
-def position_y(pos):
-    ln = {}
-    ln2 = {}
-    for x in pos.values():
-        if x[0] not in ln:
-            ln[x[0]] = 1
+def open_index():
+    global INDEX
+
+    if not INDEX:
+        try:
+            with open('index.pkl', 'rb') as pkl:
+                INDEX = pickle.load(pkl)
+        except FileNotFoundError:
+            print('index.pkl file not found.')
+            print('Please create index using --create_index PATH_TO_SVN_TRUNC_FOLDER flag')
+            exit(1)
+        except Exception:
+            print(traceback.format_exc())
+            exit(1)
+
+    print('INDEX:{0}\n'.format(INDEX['METADATA']))
+
+    return INDEX
+
+
+def swap_index():
+    global INDEX
+
+    INDEX = open_index()
+
+    with open('index.csv', 'w+') as f:
+        cw = csv.writer(f, delimiter=',', lineterminator='\n')
+        for k, v in INDEX.items():
+            if k == 'METADATA':
+                continue
+            for vi in v.sources:
+                cw.writerow([vi, k])
+
+
+def get_vertexs(output):
+    vertexs = set()
+
+    for i in output:
+        vertexs.add(i[0])
+        vertexs.add(i[1])
+
+    return sorted(list(vertexs))
+
+
+def show_dataflow2(search_objects, search_result):
+    vertexs = get_vertexs(search_result)
+    nr_vertices = len(vertexs)
+    G = Graph.Tree(0, 5, mode=1)  # 2 stands for children number
+    G.add_vertices(vertexs)
+    G.add_edges(search_result)
+
+    lay = G.layout('rt')
+    position = {k: (lay[k][1], lay[k][0]) for k in range(nr_vertices)}  # rotate 90 deg
+
+    vx = {v: k for k, v in G.vs._name_index.items()}
+
+    gr = nx.DiGraph(directed=True)
+    E = [(vx[e.tuple[0]], vx[e.tuple[1]]) for e in G.es]  # list of edges
+    position = {vx[k]: v for k, v in position.items()}
+
+    gr.add_edges_from(E)
+
+    nx.draw(gr, position, with_labels=False, arrows=True, alpha=0.5, font_size=10,
+            node_shape='s', node_size=250, connectionstyle='arc3, rad = 0.15',)
+
+    for k, v in position.items():
+        if k in search_objects:
+            plt.annotate(k, v, textcoords="offset points", xytext=(0, 11), ha='center', color='red')
         else:
-            ln[x[0]] += 1
-
-    for j in ln:
-        ln2[j] = [i + 1 for i in range(ln[j])]
-
-    for j in ln:
-        ln[j] = ln[j] // 2
-
-    for p in pos.keys():
-        pnt = pos[p]
-        pos[p] = (pnt[0], ln2[pnt[0]].pop() - ln[pnt[0]])
+            plt.annotate(k,  # this is the text
+                         v,  # this is the point to label
+                         textcoords="offset points",  # how to position the text
+                         xytext=(0, 11),  # distance from text to points (x,y)
+                         ha='center',  # horizontal alignment can be left, right or center
+                         )
+    plt.draw()
+    plt.show()
 
 
 def main():
@@ -277,16 +340,24 @@ def main():
     parser.add_argument('-ci', "--create_index", metavar='root_dir_path', action="store", help="create or update index from localFS (svn trunc)")
     parser.add_argument('-e', "--exclude_dir_names", metavar='dir_name', action="store", nargs='+', required=False, help='exclude dirs')
     parser.add_argument('-f', "--find", metavar='search_object', nargs='+', help="find dependencies")
+    parser.add_argument('-sw', "--swap_index", metavar='FILE_NAME', help="swap index to csv file")
     parser.add_argument('-d', "--depth", action="store", type=int, help="depth of search in both directions", default=999)
+    parser.add_argument('-es', "--exclude_source", action="store", metavar='exclude_source', nargs='+', help="depth of search in both directions")
 
     args = parser.parse_args()
 
-    if not args.create_index and not args.find:
+    if not args.create_index and not args.find and not args.swap_index:
         print('Nothing to do...')
         parser.print_help()
         exit(0)
 
     search_depth = args.depth
+
+    exclude_source = []
+    if args.exclude_source:
+        exclude_source = set(args.exclude_source)
+        print('exclude_sources:\n')
+        print(exclude_source)
 
     if args.exclude_dir_names:
         EXCLUDE_DIR_NAMES = set(args.exclude_dir_names)
@@ -299,25 +370,25 @@ def main():
             print('Creating index ...')
             INDEX = create_index(root_dir_path, EXCLUDE_DIR_NAMES)
         else:
-            print('Path "{0}" is not a dir'.format(root_dir_path))
+            print('Path "{0}" is not a directory'.format(root_dir_path))
+
+    if args.swap_index:
+        swap_index()
 
     if args.find:
-        search_objects = args.find
+        search_objects = list(map(lambda x: x.lower(), args.find))
 
-        if not INDEX:
-            with open('index.pkl', 'rb') as pkl:
-                INDEX = pickle.load(pkl)
+        INDEX = open_index()
 
-        print('INDEX:{0}\n'.format(INDEX['METADATA']))
-
-        with open('idx', 'w') as f:
-            f.write(str(INDEX))
+        # with open('idx', 'w') as f:
+        #     f.write(str(INDEX))
 
         result_source = set()
         result_target = set()
 
         for so in search_objects:
-            res_source = find_source_path(INDEX, so, depth=search_depth)
+            res_source = find_source_path(
+                INDEX, so, exclude_source, depth=search_depth)
             if res_source:
                 result_source = result_source | set(res_source)
 
@@ -331,6 +402,8 @@ def main():
         print('Done.')
 
         result_to_csv(result)
+
+        show_dataflow2(search_objects, result)
 
 
 if __name__ == '__main__':
