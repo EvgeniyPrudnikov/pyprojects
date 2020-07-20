@@ -5,7 +5,7 @@ from collections import namedtuple
 import re
 import traceback
 import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
+from matplotlib.patches import FancyArrowPatch
 import time
 import csv
 from datetime import timedelta
@@ -23,16 +23,11 @@ class MyLines:
     def get_dep_line(self, xy):
         moveble_line_idx = {}
         for i, l in enumerate(self.lines):
-
-            if list(zip(l.get_xdata(), l.get_ydata()))[0] == xy:
+            psab = l._posA_posB
+            if psab[0] == xy:
                 moveble_line_idx[i] = 0
-            if list(zip(l.get_xdata(), l.get_ydata()))[1] == xy:
+            if psab[1] == xy:
                 moveble_line_idx[i] = 1
-            # if abs(list(zip(l.get_xdata(), l.get_ydata()))[0][0] - xy[0]) <= 0.01 and abs(list(zip(l.get_xdata(), l.get_ydata()))[0][1] - xy[1]) <= 0.01:
-            #     moveble_line_idx[i] = 0
-            # if abs(list(zip(l.get_xdata(), l.get_ydata()))[1][0] - xy[0]) <= 0.01 and abs(list(zip(l.get_xdata(), l.get_ydata()))[1][1] - xy[1]) <= 0.01:
-            #     moveble_line_idx[i] = 1
-
         return moveble_line_idx
 
 
@@ -131,13 +126,9 @@ class DragableLineAnn:
         # print(self.dep)
         for k, v in self.dep.items():
             dline = self.myline.lines[k]
-            xdat = dline.get_xdata()
-            ydat = dline.get_ydata()
-            xdat[v] = (x0 + dx)
-            ydat[v] = (y0 + dy)
-            dline.set_xdata(xdat)
-            dline.set_ydata(ydat)
-            # print(list(zip(xdat, ydat)))
+            psab = dline._posA_posB
+            psab[v] = ((x0 + dx), (y0 + dy))
+            dline.set_positions(*psab)
 
         canvas = self.line.figure.canvas
         canvases = []
@@ -480,7 +471,6 @@ def show_dataflow2(search_objects, search_result, pos):
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.set_title('Data flow')
 
     x = []
     y = []
@@ -493,14 +483,18 @@ def show_dataflow2(search_objects, search_result, pos):
     ml = MyLines(lines)
 
     for ex in E:
-        lx = []
-        ly = []
-        for eexx in ex:
-            lx.append(eexx[0])
-            ly.append(eexx[1])
-            line = mlines.Line2D(lx, ly)
-            ax.add_line(line)
-            ml.add_lines(line)
+        arrow = FancyArrowPatch(ex[0], ex[1],
+                                arrowstyle='-|>',
+                                shrinkA=11,
+                                shrinkB=11,
+                                mutation_scale=10,
+                                color='black',
+                                linewidth=0.9,
+                                connectionstyle='arc3,rad=0.15',
+                                zorder=1)
+
+        ax.add_patch(arrow)
+        ml.add_lines(arrow)
 
     ax.axes.get_xaxis().set_ticks([])
     ax.axes.get_yaxis().set_ticks([])
@@ -518,9 +512,11 @@ def show_dataflow2(search_objects, search_result, pos):
                                   ha='center',  # horizontal alignment can be left, right or center
                                   ))
     print('len(vertexs) = ' + str(vertexs_len))
-    if vertexs_len <= 50:
+    if vertexs_len <= 64:
+        ax.set_title('Interactable Data flow for {0}'.format(*search_objects))
         dl = DragableLineAnn(ml, an)
     else:
+        ax.set_title('NonInteractable Data flow for {0}'.format(*search_objects))
         del ml
     plt.show()
 
