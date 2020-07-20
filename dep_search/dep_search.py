@@ -4,19 +4,198 @@ import pickle
 from collections import namedtuple
 import re
 import traceback
-from igraph import Graph
 import matplotlib.pyplot as plt
-import networkx as nx
+import matplotlib.lines as mlines
 import time
 import csv
 from datetime import timedelta
+
+
+class MyLines:
+
+    def __init__(self, points):
+        self.points = points
+        self.lines = []
+
+    def add_lines(self, ln):
+        self.lines.append(ln)
+
+    def get_dep_line(self, xy):
+        moveble_line_idx = {}
+        for i, l in enumerate(self.lines):
+
+            if list(zip(l.get_xdata(), l.get_ydata()))[0] == xy:
+                moveble_line_idx[i] = 0
+            if list(zip(l.get_xdata(), l.get_ydata()))[1] == xy:
+                moveble_line_idx[i] = 1
+            # if abs(list(zip(l.get_xdata(), l.get_ydata()))[0][0] - xy[0]) <= 0.01 and abs(list(zip(l.get_xdata(), l.get_ydata()))[0][1] - xy[1]) <= 0.01:
+            #     moveble_line_idx[i] = 0
+            # if abs(list(zip(l.get_xdata(), l.get_ydata()))[1][0] - xy[0]) <= 0.01 and abs(list(zip(l.get_xdata(), l.get_ydata()))[1][1] - xy[1]) <= 0.01:
+            #     moveble_line_idx[i] = 1
+
+        return moveble_line_idx
+
+
+class DragableLineAnn:
+    lock = None
+
+    def __init__(self, myline, an):
+        self.myline = myline
+        self.line = myline.points
+        self.an = an
+        self.press = None
+        self.background = None
+        # self.background_an = None
+        self.xs = list(myline.points.get_xdata())
+        self.ys = list(myline.points.get_ydata())
+        self.moving_point_idx = -1
+        self.cidpress = myline.points.figure.canvas.mpl_connect('button_press_event', self.on_press)
+        self.cidmotion = myline.points.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.cidrelease = myline.points.figure.canvas.mpl_connect('button_release_event', self.on_release)
+
+    def on_press(self, event):
+        'on button press we will see if the mouse is over us and store some data'
+
+        if event.inaxes != self.line.axes:
+            return
+        if DragableLineAnn.lock is not None:
+            return
+        contains, attrd = self.line.contains(event)
+        if not contains:
+            return
+        # print(event)
+        DragableLineAnn.lock = self
+
+        x0 = min(self.xs, key=lambda x: abs(x - event.xdata))
+        y0 = min(self.ys, key=lambda x: abs(x - event.ydata))
+
+        try:
+            self.moving_point_idx = list(zip(self.xs, self.ys)).index((x0, y0))
+        except Exception as e:
+            # print(e)
+            self.moving_point_idx = -1
+            self.on_release(event)
+            return
+
+        self.dep = self.myline.get_dep_line((x0, y0))
+        self.dep_lines = [self.myline.lines[k] for k, _ in self.dep.items()]
+
+        self.press = x0, y0, event.xdata, event.ydata
+        # print(self.press)
+
+        canvas = self.line.figure.canvas
+        canvases = []
+        for dep_line in self.dep_lines:
+            canvases.append(dep_line.figure.canvas)
+
+        axes = self.line.axes
+        axeses = []
+        for dep_line in self.dep_lines:
+            axeses.append(dep_line.axes)
+
+        axes_an = self.an[self.moving_point_idx].axes
+
+        self.line.set_animated(True)
+        for dep_line in self.dep_lines:
+            dep_line.set_animated(True)
+
+        self.an[self.moving_point_idx].set_animated(True)
+        canvas.draw()
+
+        self.background = canvas.copy_from_bbox(self.line.axes.bbox)
+        axes.draw_artist(self.line)
+        for i, dep_line in enumerate(self.dep_lines):
+            axeses[i].draw_artist(dep_line)
+        axes_an.draw_artist(self.an[self.moving_point_idx])
+
+        # and blit just the redrawn area
+        canvas.blit(axes.bbox)
+        for i, c in enumerate(canvases):
+            c.blit(axeses[i].bbox)
+        canvas.blit(axes_an.bbox)
+
+    def on_motion(self, event):
+        'on motion we will move the line if the mouse is over us'
+        if DragableLineAnn.lock is not self:
+            return
+        if event.inaxes != self.line.axes:
+            return
+        x0, y0, xpress, ypress = self.press
+        dx = event.xdata - xpress
+        dy = event.ydata - ypress
+        self.xs[self.moving_point_idx] = (x0 + dx)
+        self.ys[self.moving_point_idx] = (y0 + dy)
+        self.line.set_xdata(self.xs)
+        self.line.set_ydata(self.ys)
+        self.an[self.moving_point_idx].xy = ((x0 + dx), (y0 + dy))
+        # print(self.dep)
+        for k, v in self.dep.items():
+            dline = self.myline.lines[k]
+            xdat = dline.get_xdata()
+            ydat = dline.get_ydata()
+            xdat[v] = (x0 + dx)
+            ydat[v] = (y0 + dy)
+            dline.set_xdata(xdat)
+            dline.set_ydata(ydat)
+            # print(list(zip(xdat, ydat)))
+
+        canvas = self.line.figure.canvas
+        canvases = []
+        # for dep_line in self.dep_lines:
+        #     canvases.append(dep_line.figure.canvas)
+
+        axes = self.line.axes
+        axeses = []
+        for dep_line in self.dep_lines:
+            axeses.append(dep_line.axes)
+        axes2 = self.an[self.moving_point_idx].axes
+        # restore the background region
+        canvas.restore_region(self.background)
+        # for i, c in enumerate(canvases):
+        #     c.restore_region(self.backgroundes[i])
+
+        # canvas.restore_region(self.background_an)
+
+        # redraw just the current rectangle
+        axes.draw_artist(self.line)
+        for i, dl in enumerate(self.dep_lines):
+            axeses[i].draw_artist(dl)
+        axes2.draw_artist(self.an[self.moving_point_idx])
+
+        # blit just the redrawn area
+        canvas.blit(axes.bbox)
+        for i, c in enumerate(canvases):
+            c.blit(axeses[i].bbox)
+        canvas.blit(axes2.bbox)
+
+    def on_release(self, event):
+        'on release we reset the press data'
+        if DragableLineAnn.lock is not self:
+            return
+
+        self.press = None
+
+        # turn off the rect animation property and reset the background
+        self.line.set_animated(False)
+        for dl in self.dep_lines:
+            dl.set_animated(False)
+        self.an[self.moving_point_idx].set_animated(False)
+        self.background = None
+
+        self.line.figure.canvas.draw()
+        for dl in self.dep_lines:
+            dl.figure.canvas.draw()
+        self.an[self.moving_point_idx].figure.canvas.draw()
+
+        DragableLineAnn.lock = None
+
 
 INDEX = {}
 INDEX2 = {}
 
 EXCLUDE_DIR_NAMES = {'dev_dw', 'dev_pr', 'tables', 'sequences', 'functions', 'synonym',
                      'types', 'application', 'queries', 'scripts', 'json', 'dev_kiev', 'dev_kiev_pr', 'deploy',
-                     'hive_metastore', 'kafka', 'reports', 'triggers', 'additional_tools', 'oemm'}
+                     'hive_metastore', 'kafka', 'reports', 'triggers', 'additional_tools', 'oemm', 'snowflake', 'tidal', 'oracle_dwmeta'}
 ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 FLAGS = re.DOTALL | re.MULTILINE
@@ -24,7 +203,7 @@ FLAGS = re.DOTALL | re.MULTILINE
 SQL_REG = {
     'schema_re': r'use@([0-9_a-zA-Z]*);?',
     'trg_re': r'@?(insert|merge)@?(.*(@table|@into))@([\(\)\._a-zA-Z0-9]+?)[@|(]',
-    'trg_view_re': r'create([or@replace]*)@view@([\.\$_a-zA-Z0-9]+?)@',
+    'trg_view_re': r'create([or@replace@force]*)@view@([\.\$_a-zA-Z0-9]+?)@',
     'src_re': r'@(from|inner@join|left@join|right@join|full@join|cross@join|join)@([\(\)\.\$\_a-zA-Z0-9]+?)@',
     'src_with_catch': r'@?(with|,)@([_a-zA-Z0-9]+?)@as@\('
 }
@@ -202,54 +381,51 @@ def create_index(root_dir_path, exclude_dir_names=[]):
     return INDEX
 
 
-def find_source_path(idx, search_object, exclude_source, depth=999, x=-1, res=[], seen=[]):
-    '''
-    find and return objects who is a source for the search_object (like obj1 , obj2, obj3 --> search_object)
-    '''
+def find_source_path(ind, search_object, exclude_source, depth=999, x=-1, res=[], seen=[], pos={}):
 
     try:
-        src_objs = sorted(list(idx[search_object].sources))
+        src_objs = sorted(list(ind[search_object].sources))
     except KeyError:
-        res.append(('NULL', search_object,))
         return
 
-    if not src_objs or abs(x) > depth or search_object in exclude_source:
-        res.append(('NULL', search_object,))
+    if len(src_objs) == 0 or abs(x) > depth or search_object in exclude_source:
         return
 
     for o in src_objs:
         if o not in seen:
             res.append((o, search_object,))
             seen.append(o)
-            find_source_path(idx, o, exclude_source, depth, x - 1, res, seen)
+            pos[o] = (x, 0,)
+            find_source_path(ind, o, exclude_source, depth, x - 1, res, seen, pos)
         else:
             res.append((o, search_object,))
+            pos[o] = (x, 0,)
 
-    return res
+    return res, pos
 
 
-def find_target_path(idx, search_object, depth=999, x=1, res=[], seen=[]):
-    '''
-    find and return objects who is a target for the search_object (like search_object --> obj1 , obj2, obj3)
-    '''
+def find_target_path(ind, search_object, depth=999, x=1, res=[], seen=[], pos={}):
 
     trgs = []
 
-    for k, v in idx.items():
+    for k, v in ind.items():
         if k != 'METADATA' and search_object in v.sources:
             trgs.append(k)
 
-    if not trgs or abs(x) > depth:
+    if len(trgs) == 0 or abs(x) > depth:
         return
 
     for t in trgs:
         if t not in seen:
+            # print(' ' * lvl * 5 + str(lvl) + ' ' + t)
             res.append((search_object, t,))
             seen.append(t)
-            find_target_path(idx, t, depth, x + 1, res, seen)
+            pos[t] = (x, 0,)
+            find_target_path(ind, t, depth, x + 1, res, seen, pos)
         else:
             res.append((search_object, t,))
-    return res
+            pos[t] = (x, 0,)
+    return res, pos
 
 
 def open_index():
@@ -286,49 +462,87 @@ def swap_index():
                 cw.writerow([vi, k])
 
 
-def get_vertexs(output):
+def get_vertexs_len(output):
     vertexs = set()
 
     for i in output:
         vertexs.add(i[0])
         vertexs.add(i[1])
 
-    return sorted(list(vertexs))
+    return len(vertexs)
 
 
-def show_dataflow2(search_objects, search_result):
-    vertexs = get_vertexs(search_result)
-    nr_vertices = len(vertexs)
-    G = Graph.Tree(0, 5, mode=1)  # 2 stands for children number
-    G.add_vertices(vertexs)
-    G.add_edges(search_result)
+def show_dataflow2(search_objects, search_result, pos):
 
-    lay = G.layout('rt')
-    position = {k: (lay[k][1], lay[k][0]) for k in range(nr_vertices)}  # rotate 90 deg
+    vertexs_len = get_vertexs_len(search_result)
 
-    vx = {v: k for k, v in G.vs._name_index.items()}
+    E = [(pos[e[0]], pos[e[1]]) for e in search_result]  # list of edges
 
-    gr = nx.DiGraph(directed=True)
-    E = [(vx[e.tuple[0]], vx[e.tuple[1]]) for e in G.es]  # list of edges
-    position = {vx[k]: v for k, v in position.items()}
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_title('Data flow')
 
-    gr.add_edges_from(E)
+    x = []
+    y = []
+    for _, v in pos.items():
+        x.append(v[0])
+        y.append(v[1])
 
-    nx.draw(gr, position, with_labels=False, arrows=True, alpha=0.5, font_size=10,
-            node_shape='s', node_size=250, connectionstyle='arc3, rad = 0.15',)
+    lines, = ax.plot(x, y, 's', ms=16)
 
-    for k, v in position.items():
+    ml = MyLines(lines)
+
+    for ex in E:
+        lx = []
+        ly = []
+        for eexx in ex:
+            lx.append(eexx[0])
+            ly.append(eexx[1])
+            line = mlines.Line2D(lx, ly)
+            ax.add_line(line)
+            ml.add_lines(line)
+
+    ax.axes.get_xaxis().set_ticks([])
+    ax.axes.get_yaxis().set_ticks([])
+
+    an = []
+
+    for k, v in pos.items():
         if k in search_objects:
-            plt.annotate(k, v, textcoords="offset points", xytext=(0, 11), ha='center', color='red')
+            an.append(ax.annotate(k, v, textcoords="offset points", xytext=(0, 11), ha='center', color='red'))
         else:
-            plt.annotate(k,  # this is the text
-                         v,  # this is the point to label
-                         textcoords="offset points",  # how to position the text
-                         xytext=(0, 11),  # distance from text to points (x,y)
-                         ha='center',  # horizontal alignment can be left, right or center
-                         )
-    plt.draw()
+            an.append(ax.annotate(k,  # this is the text
+                                  v,  # this is the point to label
+                                  textcoords="offset points",  # how to position the text
+                                  xytext=(0, 11),  # distance from text to points (x,y)
+                                  ha='center',  # horizontal alignment can be left, right or center
+                                  ))
+    print('len(vertexs) = ' + str(vertexs_len))
+    if vertexs_len <= 50:
+        dl = DragableLineAnn(ml, an)
+    else:
+        del ml
     plt.show()
+
+
+def update_y_position(pos):
+    ln = {}
+    ln2 = {}
+    for x in pos.values():
+        if x[0] not in ln:
+            ln[x[0]] = 1
+        else:
+            ln[x[0]] += 1
+
+    for j in ln:
+        ln2[j] = [i + 1 for i in range(ln[j])]
+
+    for j in ln:
+        ln[j] = ln[j] // 2
+
+    for p in pos.keys():
+        pnt = pos[p]
+        pos[p] = (pnt[0], ln2[pnt[0]].pop() - ln[pnt[0]])
 
 
 def main():
@@ -340,16 +554,18 @@ def main():
     parser.add_argument('-ci', "--create_index", metavar='root_dir_path', action="store", help="create or update index from localFS (svn trunc)")
     parser.add_argument('-e', "--exclude_dir_names", metavar='dir_name', action="store", nargs='+', required=False, help='exclude dirs')
     parser.add_argument('-f', "--find", metavar='search_object', nargs='+', help="find dependencies")
+    parser.add_argument('-fs', "--find_source", metavar='search_object', nargs='+', help="find sources dependencies")
+    parser.add_argument('-ft', "--find_target", metavar='search_object', nargs='+', help="find target dependencies")
     parser.add_argument('-sw', "--swap_index", metavar='FILE_NAME', help="swap index to csv file")
     parser.add_argument('-d', "--depth", action="store", type=int, help="depth of search in both directions", default=999)
     parser.add_argument('-es', "--exclude_source", action="store", metavar='exclude_source', nargs='+', help="depth of search in both directions")
 
     args = parser.parse_args()
 
-    if not args.create_index and not args.find and not args.swap_index:
-        print('Nothing to do...')
-        parser.print_help()
-        exit(0)
+    # if not args.create_index and not args.find and not args.swap_index:
+    #     print('Nothing to do...')
+    #     parser.print_help()
+    #     exit(0)
 
     search_depth = args.depth
 
@@ -358,6 +574,9 @@ def main():
         exclude_source = set(args.exclude_source)
         print('exclude_sources:\n')
         print(exclude_source)
+
+    print('Excluded directories:')
+    print(*EXCLUDE_DIR_NAMES, sep=', ')
 
     if args.exclude_dir_names:
         EXCLUDE_DIR_NAMES = set(args.exclude_dir_names)
@@ -375,35 +594,86 @@ def main():
     if args.swap_index:
         swap_index()
 
+    if args.find_source:
+        search_objects = list(map(lambda x: x.lower(), args.find_source))
+        INDEX = open_index()
+        result_source = set()
+        position_source = dict()
+        for so in search_objects:
+            res_source, pos_source = find_source_path(INDEX, so, exclude_source, depth=search_depth)
+            if res_source:
+                result_source = result_source | set(res_source)
+                position_source.update(pos_source)
+
+        for so in search_objects:
+            position_source[so] = (0, 0)
+
+        update_y_position(position_source)
+        print(position_source)
+
+        result_to_csv(result_source)
+
+        show_dataflow2(search_objects, result_source, position_source)
+
+    if args.find_target:
+        search_objects = list(map(lambda x: x.lower(), args.find_target))
+        INDEX = open_index()
+        result_target = set()
+        position_target = dict()
+        for so in search_objects:
+            res_target, pos_target = find_target_path(INDEX, so, depth=search_depth)
+            if res_target:
+                result_target = result_target | set(res_target)
+                position_target.update(pos_target)
+
+        for so in search_objects:
+            position_target[so] = (0, 0)
+
+        update_y_position(position_target)
+        print(position_target)
+
+        result_to_csv(result_target)
+
+        show_dataflow2(search_objects, result_target, position_target)
+
     if args.find:
         search_objects = list(map(lambda x: x.lower(), args.find))
 
         INDEX = open_index()
 
-        # with open('idx', 'w') as f:
-        #     f.write(str(INDEX))
+        with open('idx', 'w') as f:
+            f.write(str(INDEX))
 
         result_source = set()
+        position_source = dict()
         result_target = set()
+        position_target = dict()
+        pos = dict()
 
         for so in search_objects:
-            res_source = find_source_path(
-                INDEX, so, exclude_source, depth=search_depth)
+            res_source, pos_source = find_source_path(INDEX, so, exclude_source, depth=search_depth)
             if res_source:
                 result_source = result_source | set(res_source)
+                position_source.update(pos_source)
 
-            res_target = find_target_path(INDEX, so, depth=search_depth)
+            res_target, pos_target = find_target_path(INDEX, so, depth=search_depth)
             if res_target:
                 result_target = result_target | set(res_target)
+                position_target.update(pos_target)
 
         result = result_source | result_target
 
-        print(result)
-        print('Done.')
+        pos = {**pos_source, **pos_target}
+
+        for so in search_objects:
+            pos[so] = (0, 0)
+
+        update_y_position(pos)
+        print(pos)
 
         result_to_csv(result)
 
-        show_dataflow2(search_objects, result)
+        show_dataflow2(search_objects, result, pos)
 
 
 if __name__ == '__main__':
