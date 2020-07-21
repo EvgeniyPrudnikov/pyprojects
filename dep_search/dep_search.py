@@ -9,13 +9,17 @@ from matplotlib.patches import FancyArrowPatch
 import time
 import csv
 from datetime import timedelta
+import tkinter as tk
 
 
 class MyLines:
 
-    def __init__(self, points):
+    def __init__(self, points, lines=[]):
         self.points = points
-        self.lines = []
+        if lines:
+            self.lines = lines
+        else:
+            self.lines = []
 
     def add_lines(self, ln):
         self.lines.append(ln)
@@ -48,12 +52,24 @@ class DragableLineAnn:
         self.cidmotion = myline.points.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.cidrelease = myline.points.figure.canvas.mpl_connect('button_release_event', self.on_release)
 
+    def on_pick(self, obj_name):
+
+        root = tk.Tk()
+        root.title('Table info for {0}'.format(obj_name))
+        txt = tk.Text(root)
+        txt.pack()
+        txt.insert(tk.END, "TBD\ntable info for {0}".format(obj_name))
+        txt.config(state=tk.DISABLED)
+        tk.mainloop()
+
     def on_press(self, event):
         'on button press we will see if the mouse is over us and store some data'
 
         if event.inaxes != self.line.axes:
             return
         if DragableLineAnn.lock is not None:
+            return
+        if DragableLineAnn.lock is self:
             return
         contains, attrd = self.line.contains(event)
         if not contains:
@@ -67,17 +83,22 @@ class DragableLineAnn:
         try:
             self.moving_point_idx = list(zip(self.xs, self.ys)).index((x0, y0))
         except Exception as e:
-            # print(e)
+            print(e)
+            print((x0, y0))
+            print(list(zip(self.xs, self.ys)))
             self.moving_point_idx = -1
             self.on_release(event)
+            return
+
+        if event.dblclick:
+            self.on_pick(self.an[self.moving_point_idx].get_text())
             return
 
         self.dep = self.myline.get_dep_line((x0, y0))
         self.dep_lines = [self.myline.lines[k] for k, _ in self.dep.items()]
 
         self.press = x0, y0, event.xdata, event.ydata
-        # print(self.press)
-
+        print(self.press)
         canvas = self.line.figure.canvas
         canvases = []
         for dep_line in self.dep_lines:
@@ -115,7 +136,10 @@ class DragableLineAnn:
             return
         if event.inaxes != self.line.axes:
             return
-        x0, y0, xpress, ypress = self.press
+        try:
+            x0, y0, xpress, ypress = self.press
+        except Exception as e:
+            print(e)
         dx = event.xdata - xpress
         dy = event.ydata - ypress
         self.xs[self.moving_point_idx] = (x0 + dx)
@@ -123,7 +147,7 @@ class DragableLineAnn:
         self.line.set_xdata(self.xs)
         self.line.set_ydata(self.ys)
         self.an[self.moving_point_idx].xy = ((x0 + dx), (y0 + dy))
-        # print(self.dep)
+
         for k, v in self.dep.items():
             dline = self.myline.lines[k]
             psab = dline._posA_posB
@@ -359,7 +383,7 @@ def create_index(root_dir_path, exclude_dir_names=[]):
                 cnt += 1
         print('{0} - {1} files processed.'.format(path, cnt))
 
-    INDEX['METADATA'] = {'objects': len(INDEX), 'last_update_date': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}
+    INDEX['METADATA'] = {'objects_num': len(INDEX), 'last_update_date': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}
 
     print(INDEX['METADATA'])
 
@@ -467,7 +491,7 @@ def show_dataflow2(search_objects, search_result, pos):
 
     vertexs_len = get_vertexs_len(search_result)
 
-    E = [(pos[e[0]], pos[e[1]]) for e in search_result]  # list of edges
+    E = [(pos[e[0]], pos[e[1]]) for e in search_result]
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -490,7 +514,7 @@ def show_dataflow2(search_objects, search_result, pos):
                                 mutation_scale=10,
                                 color='black',
                                 linewidth=0.9,
-                                connectionstyle='arc3,rad=0.15',
+                                connectionstyle='arc3,rad=0.02',
                                 zorder=1)
 
         ax.add_patch(arrow)
@@ -513,10 +537,10 @@ def show_dataflow2(search_objects, search_result, pos):
                                   ))
     print('len(vertexs) = ' + str(vertexs_len))
     if vertexs_len <= 64:
-        ax.set_title('Interactable Data flow for {0}'.format(*search_objects))
+        ax.set_title('Interactable Data Flow for {0}'.format(*search_objects))
         dl = DragableLineAnn(ml, an)
     else:
-        ax.set_title('NonInteractable Data flow for {0}'.format(*search_objects))
+        ax.set_title('NonInteractable Data Flow for {0}'.format(*search_objects))
         del ml
     plt.show()
 
@@ -647,19 +671,23 @@ def main():
         pos = dict()
 
         for so in search_objects:
-            res_source, pos_source = find_source_path(INDEX, so, exclude_source, depth=search_depth)
+            res_source, pos_source = find_source_path(INDEX, so, exclude_source, depth=search_depth) or (None, None)
             if res_source:
                 result_source = result_source | set(res_source)
                 position_source.update(pos_source)
 
-            res_target, pos_target = find_target_path(INDEX, so, depth=search_depth)
+            res_target, pos_target = find_target_path(INDEX, so, depth=search_depth) or (None, None)
             if res_target:
                 result_target = result_target | set(res_target)
                 position_target.update(pos_target)
 
         result = result_source | result_target
 
-        pos = {**pos_source, **pos_target}
+        # pos = {**pos_source, **pos_target}
+        if pos_source:
+            pos.update(pos_source)
+        if pos_target:
+            pos.update(pos_target)
 
         for so in search_objects:
             pos[so] = (0, 0)
