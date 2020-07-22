@@ -284,6 +284,9 @@ class IndexStorage:
 
     def open_index(self):
 
+        if self.index:
+            return
+
         try:
             with open('index.pkl', 'rb') as pkl:
                 self.index = pickle.load(pkl)
@@ -357,6 +360,8 @@ class PointsList():
     def __add__(self, other):
         vert = self.points.update(other.points)
         ed = self.edges + other.edges
+        print(vert)
+        print(ed)
         return PointsList(vert, ed)
 
     def __radd__(self, other):
@@ -591,7 +596,17 @@ class PlotPresenter():
 
     def transform_data(self):
 
-        self.points_list = self.idx.get_source_path(self.search_objects, self.exclude_sources, self.depth)
+        if self.cmd == 'find_source':
+            self.points_list = self.idx.get_source_path(self.search_objects, self.exclude_sources, self.depth)
+        elif self.cmd == 'find_target':
+            self.points_list = self.idx.get_target_path(self.search_objects, self.depth)
+        elif self.cmd == 'find':
+            pl1 = self.idx.get_source_path(self.search_objects, self.exclude_sources, self.depth)
+            pl2 = self.idx.get_target_path(self.search_objects, self.depth)
+            self.points_list = pl1 + pl2
+        else:
+            print('lol')
+            exit(1)
 
         for ex in self.points_list.edges:
             arrow = FancyArrowPatch(ex[0], ex[1],
@@ -668,24 +683,22 @@ def main():
 
     if args.swap_index:
         idx.swap_index()
+        return
 
     if args.find_source:
         search_objects = list(map(lambda x: x.lower(), args.find_source))
-        idx = IndexStorage()
-
-        idx.open_index()
-        plt_press = PlotPresenter(search_objects, exclude_source, search_depth, idx, 'find_source')
-        plt_view = PlotView(plt_press)
-        plt_view.show()
-
+        cmd = 'find_source'
     if args.find_target:
         search_objects = list(map(lambda x: x.lower(), args.find_target))
-        idx = IndexStorage()
+        cmd = 'find_target'
+    if args.find:
+        search_objects = list(map(lambda x: x.lower(), args.find))
+        cmd = 'find'
 
-        idx.open_index()
-        plt_press = PlotPresenter(search_objects, exclude_source, search_depth, idx, 'find_target')
-        plt_view = PlotView(plt_press)
-        plt_view.show()
+    idx.open_index()
+    plt_press = PlotPresenter(search_objects, exclude_source, search_depth, idx, cmd)
+    plt_view = PlotView(plt_press)
+    plt_view.show()
 
 
 if __name__ == '__main__':
