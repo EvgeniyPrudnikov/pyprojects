@@ -350,6 +350,7 @@ class Point():
 class PointsList():
 
     def __init__(self, points, edges):
+        self.points_raw = points
         self.points = {i: Point(v[0], v[1]) for i, v in enumerate(points.items())}
         self.points_len = len(points.keys())
         self.x_y_arr = np.array(list(points.values()))
@@ -358,10 +359,8 @@ class PointsList():
         self._connect_edges_to_points()
 
     def __add__(self, other):
-        vert = self.points.update(other.points)
+        vert = {**self.points_raw, **other.points_raw}
         ed = self.edges + other.edges
-        print(vert)
-        print(ed)
         return PointsList(vert, ed)
 
     def __radd__(self, other):
