@@ -23,8 +23,7 @@ ACCEPTED_FILES_TYPES = ['.pkb', '.sql']
 
 class IndexStorage:
 
-    def __init__(self, path_to_root='', ):
-        self.path_to_root = path_to_root
+    def __init__(self, path_to_root=''):
         self.index = {}
         self._init_re()
 
@@ -95,19 +94,19 @@ class IndexStorage:
     def _process_file(self, file_path, schema_name):
         ind_part = {}
 
-        f = open(file_path, 'rb')
-        try:
-            data = f.read().decode('utf-8', 'ignore')
-        except Exception as e:
-            print(e)
-            print(file_path + '-- broken')
-            return
+        with open(file_path, 'rb') as f:
+            try:
+                data = f.read().decode('utf-8', 'ignore')
+            except Exception as e:
+                print(e)
+                print(file_path + '-- broken')
+                return
 
         starts = ['insert', 'merge', 'create', 'use', 'if']
 
         for stm in data.split(';'):
             stm = stm.strip().lower()
-            cl_data = self.clear_data(stm)
+            cl_data = self._clear_data(stm)
 
             if len(cl_data) <= 1:
                 continue
@@ -158,8 +157,6 @@ class IndexStorage:
 
             self._add_to_index(ind_part, {trg_object: trg_obj_props(schemas={schema_name}, sources=s_sources)})
 
-        f.close()
-
         return ind_part
 
     def _add_to_index(self, index, ind_part):
@@ -188,7 +185,7 @@ class IndexStorage:
                     cnt += 1
             print('{0} - {1} files processed.'.format(path, cnt))
 
-        self.index['METADATA'] = {'objects_num': len(self.index), 'last_update_date': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}
+        self.index['METADATA'] = {'objects_num': len(self.index), 'last_update_date': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), 'root_dir_path': root_dir_path}
 
         print(self.index['METADATA'])
 
@@ -300,23 +297,20 @@ class IndexStorage:
 
         print('INDEX:{0}\n'.format(self.index['METADATA']))
 
-    def swap_index(self):
-        with open('index.csv', 'w+') as f:
+    def swap_index(self, file_name):
+        if not file_name:
+            print('file_name is not valid')
+            return
+
+        self.open_index()
+
+        with open(file_name, 'w+') as f:
             cw = csv.writer(f, delimiter=',', lineterminator='\n')
             for k, v in self.index.items():
                 if k == 'METADATA':
                     continue
                 for vi in v.sources:
                     cw.writerow([vi, k])
-
-    def get_vertexs_len(self, output):
-        vertexs = set()
-
-        for i in output:
-            vertexs.add(i[0])
-            vertexs.add(i[1])
-
-        return len(vertexs)
 
     def _update_y_position(self, pos):
         points_num_per_x_ax = {}
@@ -636,7 +630,6 @@ class PlotPresenter():
 def main():
 
     global EXCLUDE_DIR_NAMES
-    global INDEX
 
     parser = argparse.ArgumentParser(description='Dependencies search')
     parser.add_argument('-ci', "--create_index", metavar='root_dir_path', action="store", help="create or update index from localFS (svn trunc)")
@@ -650,10 +643,10 @@ def main():
 
     args = parser.parse_args()
 
-    # if not args.create_index and not args.find and not args.swap_index:
-    #     print('Nothing to do...')
-    #     parser.print_help()
-    #     exit(0)
+    if not args.create_index and not args.find and not args.find_source and not args.find_target and not args.swap_index:
+        print('Nothing to do...')
+        parser.print_help()
+        exit(0)
 
     idx = IndexStorage()
     search_depth = args.depth
@@ -662,7 +655,7 @@ def main():
     if args.exclude_source:
         exclude_source = set(args.exclude_source)
         print('exclude_sources:\n')
-        print(exclude_source)
+        print(*exclude_source, sep=', ')
 
     print('Excluded directories:')
     print(*EXCLUDE_DIR_NAMES, sep=', ')
@@ -678,12 +671,15 @@ def main():
             print('Creating index ...')
             idx.create_index(root_dir_path, EXCLUDE_DIR_NAMES)
         else:
-            print('Path "{0}" is not a directory'.format(root_dir_path))
+            print('Path "{0}" is not a directory'.format(os.path.abspath(root_dir_path)))
 
     if args.swap_index:
-        idx.swap_index()
+        swap_file_name = args.swap_index.strip("'").strip('"')
+        print('Swapping index to {0}'.format(os.path.abspath(swap_file_name)))
+        idx.swap_index(swap_file_name)
         return
 
+    cmd = None
     if args.find_source:
         search_objects = list(map(lambda x: x.lower(), args.find_source))
         cmd = 'find_source'
@@ -693,11 +689,11 @@ def main():
     if args.find:
         search_objects = list(map(lambda x: x.lower(), args.find))
         cmd = 'find'
-
-    idx.open_index()
-    plt_press = PlotPresenter(search_objects, exclude_source, search_depth, idx, cmd)
-    plt_view = PlotView(plt_press)
-    plt_view.show()
+    if cmd:
+        idx.open_index()
+        plt_press = PlotPresenter(search_objects, exclude_source, search_depth, idx, cmd)
+        plt_view = PlotView(plt_press)
+        plt_view.show()
 
 
 if __name__ == '__main__':
