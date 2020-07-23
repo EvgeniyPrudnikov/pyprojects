@@ -394,12 +394,11 @@ class PointsList():
 class DetailedPlot():
     def __init__(self, obj_name):
         self.obj_name = obj_name
-        self.root = tk.Tk()
 
     def show(self):
-
-        self.root.title('Table info for {0}'.format(self.obj_name))
-        txt = tk.Text(self.root)
+        root = tk.Tk()
+        root.title('Table info for {0}'.format(self.obj_name))
+        txt = tk.Text(root)
         txt.pack()
         txt.insert(tk.END, "TBD\ntable info for {0}".format(self.obj_name))
         txt.config(state=tk.DISABLED)
@@ -471,12 +470,13 @@ class PlotView():
             self._on_release(event)
             return
 
-        if event.dblclick:
-            self._on_pick(self.plot_presenter.annotations[self.moving_point_idx].get_text())
-            return
-
         self.dep_lines = [self.plot_presenter.arrows[k] for k, _ in self.plot_presenter.points_list.get_dep_edges(self.moving_point_idx).items()]
         self.press = p.xy[0], p.xy[1], event.xdata, event.ydata
+
+        if event.button == 3:
+            self._on_pick(self.plot_presenter.annotations[self.moving_point_idx].get_text())
+            self._on_release(event)
+            return
 
         canvas = self.line.figure.canvas
         canvases = []
@@ -555,7 +555,7 @@ class PlotView():
         canvas.blit(axes2.bbox)
 
     def _on_release(self, event):
-        'on release we reset the press data'
+
         if PlotView.lock is not self:
             return
 
