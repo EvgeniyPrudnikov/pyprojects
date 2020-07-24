@@ -330,6 +330,7 @@ class IndexStorage:
 
 
 class Point():
+
     def __init__(self, name, position):
         self.name = name
         self.xy = position
@@ -362,6 +363,7 @@ class PointsList():
 
     def add_eadges(self, ed):
         self.edges.append(ed)
+        self._connect_edges_to_points()
 
     def get_x_y_arr(self):
         return self.x_y_arr[:, 0], self.x_y_arr[:, 1]
