@@ -44,6 +44,15 @@ class IndexStorage:
             writer = csv.writer(f, dialect='excel', delimiter=',', lineterminator='\n', escapechar='\\')
             writer.writerows(output)
 
+    def _split_data(self, data):
+        list_data = list(data)
+        replace_re = re.compile(r"['\"](.*?(;).*?)['\"]", re.DOTALL | re.MULTILINE)
+        for m in replace_re.finditer(data):
+            pos = m.start(2)
+            list_data[pos] = '[replace_me]'
+        new_data = ''.join(list_data).split(';')
+        return map(lambda x: x.replace('[replace_me]', ';'), new_data)
+
     def _clear_data(self, text):
         # lines clearing
         text_lines = [line.strip().lower().replace('"', '') for line in text.split('\n') if
@@ -104,7 +113,7 @@ class IndexStorage:
 
         starts = ['insert', 'merge', 'create', 'use', 'if']
 
-        for stm in data.split(';'):
+        for stm in self._split_data(data):
             stm = stm.strip().lower()
             cl_data = self._clear_data(stm)
 
