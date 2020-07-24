@@ -146,6 +146,9 @@ class IndexStorage:
             if not trg_object:
                 continue
 
+            if trg_object == 'stg_wot_rnkd_season_end_stats':
+                print('LOL')
+
             src_objects = self.SQL_REG['src_re'].findall(cl_data)
             with_objects = tuple([item[1].strip().lower() for item in self.SQL_REG['src_with_catch'].findall(cl_data)])
 
@@ -230,9 +233,6 @@ class IndexStorage:
                 seen.append(o)
                 pos[o] = (x, 0,)
                 self._find_source_path(o, exclude_source, depth, x - 1, res, seen, pos)
-            else:
-                res.append((o, search_object,))
-                pos[o] = (x, 0,)
 
         return res, pos
 
@@ -274,9 +274,7 @@ class IndexStorage:
                 seen.append(t)
                 pos[t] = (x, 0,)
                 self._find_target_path(t, depth, x + 1, res, seen, pos)
-            else:
-                res.append((search_object, t,))
-                # pos[t] = (x, 0,)
+
         return res, pos
 
     def open_index(self):
