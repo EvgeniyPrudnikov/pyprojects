@@ -146,9 +146,6 @@ class IndexStorage:
             if not trg_object:
                 continue
 
-            if trg_object == 'stg_wot_rnkd_season_end_stats':
-                print('LOL')
-
             src_objects = self.SQL_REG['src_re'].findall(cl_data)
             with_objects = tuple([item[1].strip().lower() for item in self.SQL_REG['src_with_catch'].findall(cl_data)])
 
