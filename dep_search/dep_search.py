@@ -233,6 +233,8 @@ class IndexStorage:
                 seen.append(o)
                 pos[o] = (x, 0,)
                 self._find_source_path(o, exclude_source, depth, x - 1, res, seen, pos)
+            else:
+                res.append((o, search_object,))
 
         return res, pos
 
@@ -269,12 +271,12 @@ class IndexStorage:
 
         for t in trgs:
             if t not in seen:
-                # print(' ' * lvl * 5 + str(lvl) + ' ' + t)
                 res.append((search_object, t,))
                 seen.append(t)
                 pos[t] = (x, 0,)
                 self._find_target_path(t, depth, x + 1, res, seen, pos)
-
+            else:
+                res.append((search_object, t,))
         return res, pos
 
     def open_index(self):
