@@ -131,7 +131,7 @@ class IndexStorage:
             if len(cl_data) <= 1:
                 continue
 
-            if len(cl_data) > 1 and not any(map(cl_data.startswith, starts)):
+            if len(cl_data) > 1 and not any(elem in cl_data.split() for elem in starts):
                 continue
 
             cl_data = '@'.join(cl_data.split())
