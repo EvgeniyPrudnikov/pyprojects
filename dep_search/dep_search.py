@@ -234,7 +234,7 @@ class IndexStorage:
 
         return PointsList(vertexs, edges)
 
-    def _find_source_path(self, search_object, exclude_source, depth=999, x=-1, res=[], seen=[], pos={}):
+    def _find_source_path(self, search_object, exclude_source, depth=999, x=-1, res=[], pos={}):
 
         try:
             src_objs = sorted(list(self.index[search_object].sources))
@@ -245,11 +245,10 @@ class IndexStorage:
             return
 
         for o in src_objs:
-            if o not in seen:
+            if o not in pos:
                 res.append((o, search_object,))
-                seen.append(o)
                 pos[o] = (x, 0,)
-                self._find_source_path(o, exclude_source, depth, x - 1, res, seen, pos)
+                self._find_source_path(o, exclude_source, depth, x - 1, res, pos)
             else:
                 res.append((o, search_object,))
 
@@ -275,7 +274,7 @@ class IndexStorage:
 
         return PointsList(vertexs, edges)
 
-    def _find_target_path(self, search_object, depth, x=1, res=[], seen=[], pos={}):
+    def _find_target_path(self, search_object, depth, x=1, res=[], pos={}):
 
         trgs = []
 
@@ -287,11 +286,10 @@ class IndexStorage:
             return
 
         for t in trgs:
-            if t not in seen:
+            if t not in pos:
                 res.append((search_object, t,))
-                seen.append(t)
                 pos[t] = (x, 0,)
-                self._find_target_path(t, depth, x + 1, res, seen, pos)
+                self._find_target_path(t, depth, x + 1, res, pos)
             else:
                 res.append((search_object, t,))
         return res, pos
